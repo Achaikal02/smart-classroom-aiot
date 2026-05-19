@@ -1,0 +1,28 @@
+# Virtual environment
+venv/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# VS Code
+.vscode/
+
+# Environment file
+.env
+
+# Large files / model / video
+*.mp4
+*.avi
+*.mov
+*.mkv
+*.pt
+*.pth
+*.onnx
+
+# OS files
+.DS_Store
+Thumbs.db
