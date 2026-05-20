@@ -7,6 +7,10 @@ CAMERA_INDEX = 0
 FRAME_WIDTH = 640
 FRAME_HEIGHT = 480
 
+MAX_MISS_FRAMES  = 10
+DEBOUNCE_FRAMES  = 3
+HISTORY_SIZE     = 10
+
 # =========================
 # YOLO
 # =========================
@@ -35,7 +39,7 @@ NUNDUK_THRESHOLD = 0.1
 # =========================
 WEIGHT_TANGAN = 0.6
 WEIGHT_HADAP = 0.4
-ENGAGEMENT_SMOOTHING = 0.7
+ENGAGEMENT_SMOOTHING = 0.85
 
 # =========================
 # API (untuk sender.py nanti)

@@ -4,9 +4,11 @@ import cv2
 import mediapipe as mp
 from ultralytics import YOLO
 from datetime import datetime
+from collections import defaultdict, deque
 from detector import analyze_pose, draw_skeleton
 from utils import calculate_engagement, smooth_engagement
 import config
+import time
 
 # =========================
 # LOAD MODEL
@@ -31,7 +33,33 @@ cap = cv2.VideoCapture(config.CAMERA_INDEX)
 cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.FRAME_WIDTH)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.FRAME_HEIGHT)
 
+# =========================
+# TRACKER & DEBOUNCE
+# =========================
+siswa_tracker   = {}                  # key: grid, value: sisa frame toleransi
+debounce_angkat = defaultdict(int)
+debounce_hadap  = defaultdict(int)
+debounce_nunduk = defaultdict(int)
+state_angkat    = defaultdict(int)
+state_hadap     = defaultdict(int)
+state_nunduk    = defaultdict(int)
+
 prev_engagement = 0.0
+last_send       = time.time()
+
+def update_debounce(counter, state, key, detected):
+    """Update debounce counter dan state stabil."""
+    if detected:
+        counter[key] = min(counter[key] + 1, config.DEBOUNCE_FRAMES)
+    else:
+        counter[key] = max(counter[key] - 1, 0)
+
+    if counter[key] >= config.DEBOUNCE_FRAMES:
+        state[key] = 1
+    elif counter[key] == 0:
+        state[key] = 0
+
+    return counter, state
 
 while True:
     ret, frame = cap.read()
@@ -40,11 +68,11 @@ while True:
 
     results = model(frame, verbose=False)
 
-    total_siswa    = 0
     total_angkat   = 0
     total_hadap    = 0
     total_menunduk = 0
     boxes_seen     = []
+    active_keys    = set()
 
     for r in results:
         for box in r.boxes:
@@ -63,30 +91,64 @@ while True:
                 continue
 
             boxes_seen.append((x1, y1))
-            total_siswa += 1
+
+            # update tracker
+            grid_key = (x1 // 50, y1 // 50)
+            siswa_tracker[grid_key] = config.MAX_MISS_FRAMES
+            active_keys.add(grid_key)
 
             crop = frame[y1:y2, x1:x2]
             if crop.size == 0:
                 continue
 
-            # pose pakai instance global
             crop_rgb     = crop[:, :, ::-1]
             pose_results = pose.process(crop_rgb)
 
             data = analyze_pose(pose_results)
-            total_angkat   += data["angkat_tangan"]
-            total_hadap    += data["menghadap_depan"]
-            total_menunduk += data["menunduk"]
+
+            # debounce per siswa
+            debounce_angkat, state_angkat = update_debounce(
+                debounce_angkat, state_angkat, grid_key, data["angkat_tangan"])
+            debounce_hadap, state_hadap = update_debounce(
+                debounce_hadap, state_hadap, grid_key, data["menghadap_depan"])
+            debounce_nunduk, state_nunduk = update_debounce(
+                debounce_nunduk, state_nunduk, grid_key, data["menunduk"])
+
+            total_angkat   += state_angkat[grid_key]
+            total_hadap    += state_hadap[grid_key]
+            total_menunduk += state_nunduk[grid_key]
 
             draw_skeleton(crop, pose_results)
 
-            # warna box: merah kalau menunduk, hijau kalau normal
-            box_color = (0, 0, 255) if data["menunduk"] else (0, 255, 0)
+            # warna box: merah = menunduk, hijau = normal
+            box_color = (0, 0, 255) if state_nunduk[grid_key] else (0, 255, 0)
             cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
             cv2.putText(frame,
-                        f"T:{data['angkat_tangan']} H:{data['menghadap_depan']} N:{data['menunduk']}",
+                        f"T:{state_angkat[grid_key]} H:{state_hadap[grid_key]} N:{state_nunduk[grid_key]}",
                         (x1, y1 - 10),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 2)
+
+    # =========================
+    # UPDATE TRACKER
+    # kurangi counter siswa yang tidak terdeteksi frame ini
+    # =========================
+    to_delete = []
+    for key in siswa_tracker:
+        if key not in active_keys:
+            siswa_tracker[key] -= 1
+            if siswa_tracker[key] <= 0:
+                to_delete.append(key)
+    for k in to_delete:
+        del siswa_tracker[k]
+        # bersihkan state debounce siswa yang sudah hilang
+        debounce_angkat.pop(k, None)
+        debounce_hadap.pop(k, None)
+        debounce_nunduk.pop(k, None)
+        state_angkat.pop(k, None)
+        state_hadap.pop(k, None)
+        state_nunduk.pop(k, None)
+
+    total_siswa = len(siswa_tracker)
 
     # =========================
     # HITUNG ENGAGEMENT
@@ -99,15 +161,25 @@ while True:
     # OUTPUT JSON
     # =========================
     output = {
-        "total_siswa":    total_siswa,
-        "angkat_tangan":  total_angkat,
+        "total_siswa":     total_siswa,
+        "angkat_tangan":   total_angkat,
         "menghadap_depan": total_hadap,
-        "menunduk":       total_menunduk,
+        "menunduk":        total_menunduk,
         "engagement_score": engagement,
-        "timestamp":      datetime.now().isoformat()
+        "timestamp":       datetime.now().isoformat()
     }
     print(output)
 
+    # =========================
+    # KIRIM KE BACKEND (per interval)
+    # =========================
+    # TODO: aktifkan setelah sender.py dibuat
+    # if time.time() - last_send >= config.SEND_INTERVAL:
+    #     from sender import send_data
+    #     send_data(output)
+    #     last_send = time.time()
+    
+    
     # =========================
     # HUD
     # =========================
