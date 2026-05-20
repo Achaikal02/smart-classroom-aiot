@@ -15,7 +15,7 @@ model = YOLO(config.YOLO_MODEL)
 mp_pose = mp.solutions.pose
 
 # =========================
-# POSE INSTANCE GLOBAL (sekali saja)
+# POSE INSTANCE GLOBAL
 # =========================
 pose = mp_pose.Pose(
     static_image_mode=True,
@@ -40,10 +40,11 @@ while True:
 
     results = model(frame, verbose=False)
 
-    total_siswa  = 0
-    total_angkat = 0
-    total_hadap  = 0
-    boxes_seen   = []
+    total_siswa    = 0
+    total_angkat   = 0
+    total_hadap    = 0
+    total_menunduk = 0
+    boxes_seen     = []
 
     for r in results:
         for box in r.boxes:
@@ -68,24 +69,29 @@ while True:
             if crop.size == 0:
                 continue
 
-            # pose pakai instance global — tidak buat ulang
-            crop_rgb = crop[:, :, ::-1]
+            # pose pakai instance global
+            crop_rgb     = crop[:, :, ::-1]
             pose_results = pose.process(crop_rgb)
 
             data = analyze_pose(pose_results)
-            total_angkat += data["angkat_tangan"]
-            total_hadap  += data["menghadap_depan"]
+            total_angkat   += data["angkat_tangan"]
+            total_hadap    += data["menghadap_depan"]
+            total_menunduk += data["menunduk"]
 
             draw_skeleton(crop, pose_results)
 
-            cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(frame, f"T:{data['angkat_tangan']} H:{data['menghadap_depan']}",
-                        (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+            # warna box: merah kalau menunduk, hijau kalau normal
+            box_color = (0, 0, 255) if data["menunduk"] else (0, 255, 0)
+            cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
+            cv2.putText(frame,
+                        f"T:{data['angkat_tangan']} H:{data['menghadap_depan']} N:{data['menunduk']}",
+                        (x1, y1 - 10),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 2)
 
     # =========================
     # HITUNG ENGAGEMENT
     # =========================
-    raw_score  = calculate_engagement(total_siswa, total_angkat, total_hadap)
+    raw_score  = calculate_engagement(total_siswa, total_angkat, total_hadap, total_menunduk)
     engagement = smooth_engagement(prev_engagement, raw_score)
     prev_engagement = engagement
 
@@ -93,11 +99,12 @@ while True:
     # OUTPUT JSON
     # =========================
     output = {
-        "total_siswa": total_siswa,
-        "angkat_tangan": total_angkat,
+        "total_siswa":    total_siswa,
+        "angkat_tangan":  total_angkat,
         "menghadap_depan": total_hadap,
+        "menunduk":       total_menunduk,
         "engagement_score": engagement,
-        "timestamp": datetime.now().isoformat()
+        "timestamp":      datetime.now().isoformat()
     }
     print(output)
 
@@ -107,7 +114,8 @@ while True:
     cv2.putText(frame, f"Siswa : {total_siswa}",    (10, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0),   2)
     cv2.putText(frame, f"Tangan: {total_angkat}",   (10, 60),  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0),   2)
     cv2.putText(frame, f"Hadap : {total_hadap}",    (10, 90),  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
-    cv2.putText(frame, f"Engage: {engagement:.2f}", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
+    cv2.putText(frame, f"Nunduk: {total_menunduk}", (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255),   2)
+    cv2.putText(frame, f"Engage: {engagement:.2f}", (10, 150), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 0), 2)
 
     cv2.imshow("YOLO Smart Classroom", frame)
     if cv2.waitKey(1) & 0xFF == 27:

@@ -2,14 +2,13 @@
 
 import config
 
-def calculate_engagement(total, angkat, hadap):
-    """
-    Hitung engagement score (0.0 - 1.0).
-    Gunakan smoothing di main.py agar tidak jumping.
-    """
+def calculate_engagement(total, angkat, hadap, menunduk=0):
     if total == 0:
         return 0.0
-    score = (angkat * config.WEIGHT_TANGAN + hadap * config.WEIGHT_HADAP) / total
+    
+    skor_aktif   = (angkat * config.WEIGHT_TANGAN + hadap * config.WEIGHT_HADAP) / total
+    penalti      = (menunduk / total) * 0.3  # menunduk kurangi skor maksimal 0.3
+    score        = max(0.0, skor_aktif - penalti)
     return round(min(score, 1.0), 2)
 
 

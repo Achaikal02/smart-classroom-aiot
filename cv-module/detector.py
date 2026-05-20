@@ -22,9 +22,12 @@ def detect_pose(frame_bgr):
 
 
 def analyze_pose(results):
-    """Analisis landmarks, return dict angkat_tangan & menghadap_depan."""
     if not results.pose_landmarks:
-        return {"angkat_tangan": 0, "menghadap_depan": 0}
+        return {
+            "angkat_tangan": 0,
+            "menghadap_depan": 0,
+            "menunduk": 0
+        }
 
     lm = results.pose_landmarks.landmark
 
@@ -37,7 +40,18 @@ def analyze_pose(results):
     center_x = (lm[11].x + lm[12].x) / 2
     hadap = 1 if abs(lm[0].x - center_x) < config.FACE_CENTER_THRESHOLD else 0
 
-    return {"angkat_tangan": angkat, "menghadap_depan": hadap}
+    # --- Menunduk/tidur ---
+    # Hidung (y) mendekati atau lebih rendah dari rata-rata bahu (y)
+    # y mediapipe: makin besar = makin ke bawah
+    shoulder_y = (lm[11].y + lm[12].y) / 2
+    nose_y = lm[0].y
+    menunduk = 1 if nose_y > shoulder_y - config.NUNDUK_THRESHOLD else 0
+
+    return {
+        "angkat_tangan": angkat,
+        "menghadap_depan": hadap,
+        "menunduk": menunduk
+    }
 
 
 def draw_skeleton(frame, results):

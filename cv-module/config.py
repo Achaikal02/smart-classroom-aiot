@@ -28,6 +28,7 @@ POSE_MODEL_COMPLEXITY = 1
 # =========================
 HAND_RAISE_THRESHOLD = 0.05
 FACE_CENTER_THRESHOLD = 0.15
+NUNDUK_THRESHOLD = 0.1
 
 # =========================
 # ENGAGEMENT
