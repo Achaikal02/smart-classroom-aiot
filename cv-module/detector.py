@@ -1,67 +1,50 @@
-import mediapipe as mp
+# detector.py
 
-# setup mediapipe pose
+import mediapipe as mp
+import config
+
 mp_pose = mp.solutions.pose
-pose = mp_pose.Pose(
+mp_drawing = mp.solutions.drawing_utils
+
+# Satu instance, pakai dengan context manager agar thread-safe
+_pose = mp_pose.Pose(
     static_image_mode=False,
-    model_complexity=1,
+    model_complexity=config.POSE_MODEL_COMPLEXITY,
     enable_segmentation=False,
-    min_detection_confidence=0.5,
-    min_tracking_confidence=0.5
+    min_detection_confidence=config.POSE_DETECTION_CONFIDENCE,
+    min_tracking_confidence=config.POSE_TRACKING_CONFIDENCE
 )
 
-def detect_pose(frame):
-    frame_rgb = frame[:, :, ::-1]  # BGR → RGB
-    results = pose.process(frame_rgb)
-    return results
+def detect_pose(frame_bgr):
+    """Proses satu frame BGR, return pose landmarks."""
+    frame_rgb = frame_bgr[:, :, ::-1]
+    return _pose.process(frame_rgb)
 
 
 def analyze_pose(results):
+    """Analisis landmarks, return dict angkat_tangan & menghadap_depan."""
     if not results.pose_landmarks:
-        return {
-            "angkat_tangan": 0,
-            "menghadap_depan": 0
-        }
+        return {"angkat_tangan": 0, "menghadap_depan": 0}
 
-    landmarks = results.pose_landmarks.landmark
+    lm = results.pose_landmarks.landmark
 
-    # =========================
-    # 🖐️ DETEKSI ANGKAT TANGAN (2 tangan)
-    # =========================
+    # --- Angkat tangan ---
+    right_up = lm[16].y < lm[12].y - config.HAND_RAISE_THRESHOLD
+    left_up  = lm[15].y < lm[11].y - config.HAND_RAISE_THRESHOLD
+    angkat = 1 if (right_up or left_up) else 0
 
-    # tangan kanan
-    right_hand = landmarks[16].y
-    right_shoulder = landmarks[12].y
+    # --- Menghadap depan ---
+    center_x = (lm[11].x + lm[12].x) / 2
+    hadap = 1 if abs(lm[0].x - center_x) < config.FACE_CENTER_THRESHOLD else 0
 
-    # tangan kiri
-    left_hand = landmarks[15].y
-    left_shoulder = landmarks[11].y
+    return {"angkat_tangan": angkat, "menghadap_depan": hadap}
 
-    # threshold biar lebih akurat
-    threshold = 0.05
 
-    angkat_tangan = 1 if (
-        right_hand < right_shoulder - threshold or
-        left_hand < left_shoulder - threshold
-    ) else 0
-
-    # =========================
-    # 👀 DETEKSI MENGHADAP DEPAN
-    # =========================
-
-    nose = landmarks[0].x
-    left_shoulder_x = landmarks[11].x
-    right_shoulder_x = landmarks[12].x
-
-    center = (left_shoulder_x + right_shoulder_x) / 2
-
-    menghadap_depan = 1 if abs(nose - center) < 0.1 else 0
-
-    # =========================
-    # RETURN DATA
-    # =========================
-
-    return {
-        "angkat_tangan": angkat_tangan,
-        "menghadap_depan": menghadap_depan
-    }
+def draw_skeleton(frame, results):
+    """Gambar skeleton mediapipe ke frame (in-place)."""
+    if results.pose_landmarks:
+        mp_drawing.draw_landmarks(
+            frame,
+            results.pose_landmarks,
+            mp_pose.POSE_CONNECTIONS
+        )
