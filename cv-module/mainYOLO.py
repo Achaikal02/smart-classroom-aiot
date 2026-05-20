@@ -1,4 +1,5 @@
 # mainYOLO.py
+# Ganti fungsi tracking dengan IoU-based tracker
 
 import cv2
 import mediapipe as mp
@@ -34,32 +35,41 @@ cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.FRAME_WIDTH)
 cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.FRAME_HEIGHT)
 
 # =========================
-# TRACKER & DEBOUNCE
+# TRACKER IoU
 # =========================
-siswa_tracker   = {}                  # key: grid, value: sisa frame toleransi
-debounce_angkat = defaultdict(int)
-debounce_hadap  = defaultdict(int)
-debounce_nunduk = defaultdict(int)
-state_angkat    = defaultdict(int)
-state_hadap     = defaultdict(int)
-state_nunduk    = defaultdict(int)
+tracked_persons = []
+# format: {"box": (x1,y1,x2,y2), "miss": 0, "id": int,
+#           "deb_angkat": 0, "deb_hadap": 0, "deb_nunduk": 0,
+#           "state_angkat": 0, "state_hadap": 0, "state_nunduk": 0}
+next_id = 0
+
+def iou(boxA, boxB):
+    """Hitung Intersection over Union dua bounding box."""
+    xA = max(boxA[0], boxB[0])
+    yA = max(boxA[1], boxB[1])
+    xB = min(boxA[2], boxB[2])
+    yB = min(boxA[3], boxB[3])
+    interW = max(0, xB - xA)
+    interH = max(0, yB - yA)
+    interArea = interW * interH
+    if interArea == 0:
+        return 0.0
+    areaA = (boxA[2]-boxA[0]) * (boxA[3]-boxA[1])
+    areaB = (boxB[2]-boxB[0]) * (boxB[3]-boxB[1])
+    return interArea / float(areaA + areaB - interArea)
+
+def update_debounce(person, key_deb, key_state, detected):
+    if detected:
+        person[key_deb] = min(person[key_deb] + 1, config.DEBOUNCE_FRAMES)
+    else:
+        person[key_deb] = max(person[key_deb] - 1, 0)
+    if person[key_deb] >= config.DEBOUNCE_FRAMES:
+        person[key_state] = 1
+    elif person[key_deb] == 0:
+        person[key_state] = 0
 
 prev_engagement = 0.0
 last_send       = time.time()
-
-def update_debounce(counter, state, key, detected):
-    """Update debounce counter dan state stabil."""
-    if detected:
-        counter[key] = min(counter[key] + 1, config.DEBOUNCE_FRAMES)
-    else:
-        counter[key] = max(counter[key] - 1, 0)
-
-    if counter[key] >= config.DEBOUNCE_FRAMES:
-        state[key] = 1
-    elif counter[key] == 0:
-        state[key] = 0
-
-    return counter, state
 
 while True:
     ret, frame = cap.read()
@@ -68,87 +78,93 @@ while True:
 
     results = model(frame, verbose=False)
 
-    total_angkat   = 0
-    total_hadap    = 0
-    total_menunduk = 0
-    boxes_seen     = []
-    active_keys    = set()
-
+    # =========================
+    # KUMPULKAN DETEKSI FRAME INI
+    # =========================
+    detections = []
     for r in results:
         for box in r.boxes:
             if int(box.cls[0]) != 0 or float(box.conf[0]) < config.YOLO_CONFIDENCE:
                 continue
-
             x1, y1, x2, y2 = map(int, box.xyxy[0])
-
-            if (x2 - x1) < config.MIN_BOX_WIDTH or (y2 - y1) < config.MIN_BOX_HEIGHT:
+            if (x2-x1) < config.MIN_BOX_WIDTH or (y2-y1) < config.MIN_BOX_HEIGHT:
                 continue
-
-            # anti duplikat
-            if any(abs(x1 - bx) < config.DUPLICATE_THRESHOLD and
-                   abs(y1 - by) < config.DUPLICATE_THRESHOLD
-                   for bx, by in boxes_seen):
-                continue
-
-            boxes_seen.append((x1, y1))
-
-            # update tracker
-            grid_key = (x1 // 50, y1 // 50)
-            siswa_tracker[grid_key] = config.MAX_MISS_FRAMES
-            active_keys.add(grid_key)
-
-            crop = frame[y1:y2, x1:x2]
-            if crop.size == 0:
-                continue
-
-            crop_rgb     = crop[:, :, ::-1]
-            pose_results = pose.process(crop_rgb)
-
-            data = analyze_pose(pose_results)
-
-            # debounce per siswa
-            debounce_angkat, state_angkat = update_debounce(
-                debounce_angkat, state_angkat, grid_key, data["angkat_tangan"])
-            debounce_hadap, state_hadap = update_debounce(
-                debounce_hadap, state_hadap, grid_key, data["menghadap_depan"])
-            debounce_nunduk, state_nunduk = update_debounce(
-                debounce_nunduk, state_nunduk, grid_key, data["menunduk"])
-
-            total_angkat   += state_angkat[grid_key]
-            total_hadap    += state_hadap[grid_key]
-            total_menunduk += state_nunduk[grid_key]
-
-            draw_skeleton(crop, pose_results)
-
-            # warna box: merah = menunduk, hijau = normal
-            box_color = (0, 0, 255) if state_nunduk[grid_key] else (0, 255, 0)
-            cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
-            cv2.putText(frame,
-                        f"T:{state_angkat[grid_key]} H:{state_hadap[grid_key]} N:{state_nunduk[grid_key]}",
-                        (x1, y1 - 10),
-                        cv2.FONT_HERSHEY_SIMPLEX, 0.5, box_color, 2)
+            detections.append((x1, y1, x2, y2))
 
     # =========================
-    # UPDATE TRACKER
-    # kurangi counter siswa yang tidak terdeteksi frame ini
+    # MATCH DETEKSI KE TRACKER (IoU)
     # =========================
-    to_delete = []
-    for key in siswa_tracker:
-        if key not in active_keys:
-            siswa_tracker[key] -= 1
-            if siswa_tracker[key] <= 0:
-                to_delete.append(key)
-    for k in to_delete:
-        del siswa_tracker[k]
-        # bersihkan state debounce siswa yang sudah hilang
-        debounce_angkat.pop(k, None)
-        debounce_hadap.pop(k, None)
-        debounce_nunduk.pop(k, None)
-        state_angkat.pop(k, None)
-        state_hadap.pop(k, None)
-        state_nunduk.pop(k, None)
+    matched_track_ids = set()
+    matched_det_ids   = set()
 
-    total_siswa = len(siswa_tracker)
+    for di, det in enumerate(detections):
+        best_iou   = 0.3  # minimum IoU threshold
+        best_track = -1
+        for ti, track in enumerate(tracked_persons):
+            if ti in matched_track_ids:
+                continue
+            score = iou(det, track["box"])
+            if score > best_iou:
+                best_iou   = score
+                best_track = ti
+        if best_track >= 0:
+            tracked_persons[best_track]["box"]  = det
+            tracked_persons[best_track]["miss"] = 0
+            matched_track_ids.add(best_track)
+            matched_det_ids.add(di)
+
+    # deteksi baru yang tidak cocok dengan track manapun
+    for di, det in enumerate(detections):
+        if di not in matched_det_ids:
+            tracked_persons.append({
+                "box": det, "miss": 0, "id": next_id,
+                "deb_angkat": 0, "deb_hadap": 0, "deb_nunduk": 0,
+                "state_angkat": 0, "state_hadap": 0, "state_nunduk": 0
+            })
+            next_id += 1
+
+    # tambah miss counter untuk track yang tidak terdeteksi
+    for ti, track in enumerate(tracked_persons):
+        if ti not in matched_track_ids:
+            tracked_persons[ti]["miss"] += 1
+
+    # hapus track yang sudah terlalu lama hilang
+    tracked_persons = [t for t in tracked_persons if t["miss"] <= config.MAX_MISS_FRAMES]
+
+    # =========================
+    # PROSES POSE PER TRACK
+    # =========================
+    total_angkat   = 0
+    total_hadap    = 0
+    total_menunduk = 0
+
+    for track in tracked_persons:
+        x1, y1, x2, y2 = track["box"]
+        crop = frame[y1:y2, x1:x2]
+        if crop.size == 0:
+            continue
+
+        crop_rgb     = crop[:, :, ::-1]
+        pose_results = pose.process(crop_rgb)
+        data         = analyze_pose(pose_results)
+
+        update_debounce(track, "deb_angkat", "state_angkat", data["angkat_tangan"])
+        update_debounce(track, "deb_hadap",  "state_hadap",  data["menghadap_depan"])
+        update_debounce(track, "deb_nunduk", "state_nunduk", data["menunduk"])
+
+        total_angkat   += track["state_angkat"]
+        total_hadap    += track["state_hadap"]
+        total_menunduk += track["state_nunduk"]
+
+        draw_skeleton(crop, pose_results)
+
+        box_color = (0, 0, 255) if track["state_nunduk"] else (0, 255, 0)
+        cv2.rectangle(frame, (x1, y1), (x2, y2), box_color, 2)
+        cv2.putText(frame,
+                    f"ID:{track['id']} T:{track['state_angkat']} H:{track['state_hadap']} N:{track['state_nunduk']}",
+                    (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.45, box_color, 2)
+
+    total_siswa = len(tracked_persons)
 
     # =========================
     # HITUNG ENGAGEMENT
@@ -161,12 +177,12 @@ while True:
     # OUTPUT JSON
     # =========================
     output = {
-        "total_siswa":     total_siswa,
-        "angkat_tangan":   total_angkat,
-        "menghadap_depan": total_hadap,
-        "menunduk":        total_menunduk,
+        "total_siswa":      total_siswa,
+        "angkat_tangan":    total_angkat,
+        "menghadap_depan":  total_hadap,
+        "menunduk":         total_menunduk,
         "engagement_score": engagement,
-        "timestamp":       datetime.now().isoformat()
+        "timestamp":        datetime.now().isoformat()
     }
     print(output)
 
@@ -178,8 +194,7 @@ while True:
     #     from sender import send_data
     #     send_data(output)
     #     last_send = time.time()
-    
-    
+
     # =========================
     # HUD
     # =========================
