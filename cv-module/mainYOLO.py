@@ -1,15 +1,15 @@
 # mainYOLO.py
-# Ganti fungsi tracking dengan IoU-based tracker
+# IoU-based tracker + kirim data ke backend Flask
 
 import cv2
 import mediapipe as mp
 from ultralytics import YOLO
 from datetime import datetime
-from collections import defaultdict, deque
 from detector import analyze_pose, draw_skeleton
 from utils import calculate_engagement, smooth_engagement
 import config
 import time
+import requests  # <-- tambahan untuk kirim ke backend
 
 # =========================
 # LOAD MODEL
@@ -38,13 +38,9 @@ cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.FRAME_HEIGHT)
 # TRACKER IoU
 # =========================
 tracked_persons = []
-# format: {"box": (x1,y1,x2,y2), "miss": 0, "id": int,
-#           "deb_angkat": 0, "deb_hadap": 0, "deb_nunduk": 0,
-#           "state_angkat": 0, "state_hadap": 0, "state_nunduk": 0}
 next_id = 0
 
 def iou(boxA, boxB):
-    """Hitung Intersection over Union dua bounding box."""
     xA = max(boxA[0], boxB[0])
     yA = max(boxA[1], boxB[1])
     xB = min(boxA[2], boxB[2])
@@ -68,6 +64,23 @@ def update_debounce(person, key_deb, key_state, detected):
     elif person[key_deb] == 0:
         person[key_state] = 0
 
+# =========================
+# FUNGSI KIRIM KE BACKEND
+# =========================
+def send_to_backend(data):
+    """Kirim data JSON ke Flask backend. Non-blocking (tidak crash kalau backend mati)."""
+    try:
+        requests.post(
+            config.BACKEND_URL,
+            json=data,
+            timeout=1  # timeout 1 detik agar tidak lag
+        )
+    except Exception:
+        pass  # Abaikan error koneksi agar program tetap jalan
+
+# =========================
+# MAIN LOOP
+# =========================
 prev_engagement = 0.0
 last_send       = time.time()
 
@@ -78,9 +91,7 @@ while True:
 
     results = model(frame, verbose=False)
 
-    # =========================
-    # KUMPULKAN DETEKSI FRAME INI
-    # =========================
+    # Kumpulkan deteksi frame ini
     detections = []
     for r in results:
         for box in r.boxes:
@@ -91,14 +102,12 @@ while True:
                 continue
             detections.append((x1, y1, x2, y2))
 
-    # =========================
-    # MATCH DETEKSI KE TRACKER (IoU)
-    # =========================
+    # Match deteksi ke tracker (IoU)
     matched_track_ids = set()
     matched_det_ids   = set()
 
     for di, det in enumerate(detections):
-        best_iou   = 0.3  # minimum IoU threshold
+        best_iou   = 0.3
         best_track = -1
         for ti, track in enumerate(tracked_persons):
             if ti in matched_track_ids:
@@ -113,7 +122,6 @@ while True:
             matched_track_ids.add(best_track)
             matched_det_ids.add(di)
 
-    # deteksi baru yang tidak cocok dengan track manapun
     for di, det in enumerate(detections):
         if di not in matched_det_ids:
             tracked_persons.append({
@@ -123,17 +131,13 @@ while True:
             })
             next_id += 1
 
-    # tambah miss counter untuk track yang tidak terdeteksi
-    for ti, track in enumerate(tracked_persons):
+    for ti in range(len(tracked_persons)):
         if ti not in matched_track_ids:
             tracked_persons[ti]["miss"] += 1
 
-    # hapus track yang sudah terlalu lama hilang
     tracked_persons = [t for t in tracked_persons if t["miss"] <= config.MAX_MISS_FRAMES]
 
-    # =========================
-    # PROSES POSE PER TRACK
-    # =========================
+    # Proses pose per track
     total_angkat   = 0
     total_hadap    = 0
     total_menunduk = 0
@@ -166,22 +170,18 @@ while True:
 
     total_siswa = len(tracked_persons)
 
-    # =========================
-    # HITUNG ENGAGEMENT
-    # =========================
+    # Hitung engagement
     raw_score  = calculate_engagement(total_siswa, total_angkat, total_hadap, total_menunduk)
     engagement = smooth_engagement(prev_engagement, raw_score)
     prev_engagement = engagement
 
-    # =========================
-    # OUTPUT JSON
-    # =========================
+    # Output JSON ke terminal
     output = {
         "total_siswa":      total_siswa,
         "angkat_tangan":    total_angkat,
         "menghadap_depan":  total_hadap,
         "menunduk":         total_menunduk,
-        "engagement_score": engagement,
+        "engagement_score": round(float(engagement), 2),
         "timestamp":        datetime.now().isoformat()
     }
     print(output)
@@ -189,15 +189,11 @@ while True:
     # =========================
     # KIRIM KE BACKEND (per interval)
     # =========================
-    # TODO: aktifkan setelah sender.py dibuat
-    # if time.time() - last_send >= config.SEND_INTERVAL:
-    #     from sender import send_data
-    #     send_data(output)
-    #     last_send = time.time()
+    if time.time() - last_send >= config.SEND_INTERVAL:
+        send_to_backend(output)
+        last_send = time.time()
 
-    # =========================
-    # HUD
-    # =========================
+    # HUD overlay
     cv2.putText(frame, f"Siswa : {total_siswa}",    (10, 30),  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0),   2)
     cv2.putText(frame, f"Tangan: {total_angkat}",   (10, 60),  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 0, 0),   2)
     cv2.putText(frame, f"Hadap : {total_hadap}",    (10, 90),  cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 255), 2)
@@ -208,9 +204,7 @@ while True:
     if cv2.waitKey(1) & 0xFF == 27:
         break
 
-# =========================
-# CLEANUP
-# =========================
+# Cleanup
 pose.close()
 cap.release()
 cv2.destroyAllWindows()

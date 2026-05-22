@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Smart Classroom — Engagement Monitoring</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg-base:    #0d1f14;
+      --bg-dark:    #071209;
+      --bg-card:    #0a1a0f;
+      --green:      #4ade80;
+      --green-mid:  #22c55e;
+      --green-dark: #166534;
+      --border:     rgba(74,222,128,0.12);
+      --text-main:  #f0fdf4;
+      --text-muted: #6b7280;
+      --text-dim:   #4b5563;
+      --blue:       #60a5fa;
+      --yellow:     #fbbf24;
+      --red:        #f87171;
+      --radius-sm:  8px;
+      --radius-md:  12px;
+      --radius-lg:  16px;
+    }
+
+    html, body {
+      height: 100%;
+      background: var(--bg-base);
+      color: var(--text-main);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    /* ── LAYOUT ── */
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ── SIDEBAR ── */
+    .sidebar {
+      width: 220px; min-width: 220px;
+      background: var(--bg-dark);
+      border-right: 1px solid var(--border);
+      display: flex; flex-direction: column;
+      padding: 20px 0;
+    }
+    .sb-logo {
+      display: flex; align-items: center; gap: 10px;
+      padding: 0 16px 18px;
+      border-bottom: 1px solid var(--border);
+    }
+    .sb-logo-icon {
+      width: 36px; height: 36px; border-radius: 10px;
+      background: #1a4731;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 15px; font-weight: 700; color: var(--green);
+    }
+    .sb-logo-title { font-size: 13px; font-weight: 600; color: var(--text-main); }
+    .sb-logo-sub   { font-size: 10px; color: var(--green); opacity: .6; }
+    .sb-nav  { display: flex; flex-direction: column; gap: 4px; padding: 14px 10px; flex: 1; }
+    .sb-item {
+      display: flex; align-items: center; gap: 10px;
+      padding: 10px 12px; border-radius: 10px;
+      cursor: pointer; font-size: 13px; color: var(--text-muted);
+      border: 1px solid transparent; transition: all .15s;
+      background: transparent;
+    }
+    .sb-item:hover  { background: rgba(74,222,128,.05); color: #9ca3af; }
+    .sb-item.active {
+      background: rgba(74,222,128,.1);
+      border-color: rgba(74,222,128,.22);
+      color: var(--green); font-weight: 600;
+    }
+    .sb-footer {
+      padding: 12px 16px;
+      border-top: 1px solid var(--border);
+    }
+    .sb-footer-label { font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+    .status-badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 4px 10px; border-radius: 20px;
+      background: rgba(74,222,128,.1);
+      border: 1px solid rgba(74,222,128,.22);
+      font-size: 11px; color: var(--green); font-weight: 500;
+    }
+    .status-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--green); box-shadow: 0 0 6px var(--green);
+      display: inline-block;
+    }
+    .status-dot.off { background: var(--text-muted); box-shadow: none; }
+
+    /* ── MAIN AREA ── */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .topbar {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 18px 28px 14px;
+      border-bottom: 1px solid var(--border);
+      background: rgba(0,0,0,.15);
+      flex-shrink: 0;
+    }
+    .topbar-eyebrow { font-size: 10px; color: var(--green); opacity:.6; letter-spacing:.1em; text-transform: uppercase; margin-bottom: 2px; }
+    .topbar-title   { font-size: 22px; font-weight: 700; color: var(--text-main); letter-spacing: -.3px; }
+    .topbar-sub     { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+    .topbar-actions { display: flex; gap: 8px; align-items: center; flex-shrink: 0; }
+
+    /* ── BUTTONS ── */
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 8px 16px; border-radius: 9px;
+      font-size: 12px; font-weight: 500;
+      cursor: pointer; border: 1px solid; transition: all .15s;
+      white-space: nowrap;
+    }
+    .btn-primary { background: var(--green-dark); border-color: var(--green-mid); color: var(--text-main); }
+    .btn-primary:hover { background: #15803d; }
+    .btn-ghost   { background: transparent; border-color: rgba(74,222,128,.2); color: #9ca3af; }
+    .btn-ghost:hover { background: rgba(74,222,128,.06); color: var(--text-main); }
+    .btn-danger  { background: rgba(248,113,113,.1); border-color: rgba(248,113,113,.3); color: var(--red); }
+    .btn-danger:hover { background: rgba(248,113,113,.18); }
+
+    /* ── CONTENT ── */
+    .content { flex: 1; overflow-y: auto; padding: 22px 28px; }
+
+    /* ── PAGES ── */
+    .page { display: none; }
+    .page.active { display: block; }
+
+    /* ── ALERT ── */
+    .alert {
+      padding: 11px 15px; border-radius: var(--radius-sm); margin-bottom: 14px;
+      font-size: 12px; display: flex; align-items: center; gap: 8px;
+    }
+    .alert-warn { background: rgba(251,191,36,.08); border: 1px solid rgba(251,191,36,.2); color: var(--yellow); }
+    .alert-err  { background: rgba(248,113,113,.08); border: 1px solid rgba(248,113,113,.2); color: var(--red); }
+
+    /* ── STAT GRID ── */
+    .stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px,1fr)); gap: 12px; margin-bottom: 18px; }
+    .stat-card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 15px;
+    }
+    .stat-icon {
+      width: 34px; height: 34px; border-radius: 9px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 17px; margin-bottom: 10px;
+    }
+    .stat-label { font-size: 11px; color: var(--text-muted); }
+    .stat-val   { font-size: 28px; font-weight: 700; color: var(--text-main); line-height: 1.1; margin: 3px 0; transition: all .4s; }
+    .stat-sub   { font-size: 10px; color: var(--text-dim); }
+
+    /* ── CARD ── */
+    .card {
+      background: var(--bg-card); border: 1px solid var(--border);
+      border-radius: var(--radius-lg); padding: 18px;
+    }
+    .card-title { font-size: 14px; font-weight: 600; color: var(--text-main); }
+    .card-sub   { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+    /* ── TWO-COL ── */
+    .two-col { display: grid; grid-template-columns: 1.15fr 1fr; gap: 14px; margin-bottom: 14px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+
+    /* ── CAMERA PANEL ── */
+    .cam-panel { display: flex; flex-direction: column; gap: 12px; }
+    .cam-controls { display: flex; align-items: center; justify-content: space-between; }
+    .cam-box {
+      flex: 1; min-height: 240px; border-radius: 12px;
+      background: #050d08; border: 1px solid var(--border);
+      position: relative; overflow: hidden;
+      display: flex; align-items: center; justify-content: center;
+    }
+    #cam-video { width: 100%; height: 100%; object-fit: cover; display: none; }
+    .cam-idle { text-align: center; padding: 20px; }
+    .cam-idle-icon {
+      width: 60px; height: 60px; border-radius: 50%;
+      background: rgba(74,222,128,.06); border: 1px solid rgba(74,222,128,.14);
+      display: flex; align-items: center; justify-content: center;
+      font-size: 24px; margin: 0 auto 12px;
+    }
+    .cam-badge {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      background: rgba(0,0,0,.65); backdrop-filter: blur(6px);
+      border: 1px solid rgba(74,222,128,.28); border-radius: 20px;
+      padding: 4px 14px; font-size: 11px; color: var(--green);
+      display: flex; align-items: center; gap: 6px; white-space: nowrap;
+    }
+    .blink { animation: blink 1.2s ease-in-out infinite; }
+    @keyframes blink { 0%,100% { opacity:1 } 50% { opacity:.35 } }
+    .cam-overlay {
+      position: absolute; bottom: 12px; left: 12px; right: 12px;
+      display: flex; gap: 8px;
+    }
+    .cam-stat {
+      flex: 1; background: rgba(0,0,0,.6); backdrop-filter: blur(5px);
+      border: 1px solid rgba(255,255,255,.07); border-radius: 8px;
+      padding: 7px; text-align: center;
+    }
+    .cam-stat-val  { font-size: 17px; font-weight: 700; line-height:1; }
+    .cam-stat-lbl  { font-size: 9px; color: var(--text-muted); margin-top:2px; }
+    .scanline {
+      position: absolute; left: 0; right: 0; height: 2px;
+      background: linear-gradient(90deg,transparent,rgba(74,222,128,.45),transparent);
+      animation: scan 3s linear infinite; pointer-events: none;
+    }
+    @keyframes scan { 0% { top:0 } 100% { top:100% } }
+    .corner {
+      position: absolute; width: 16px; height: 16px;
+    }
+    .corner-tl { top:10px; left:10px;  border-top:2px solid rgba(74,222,128,.4); border-left:2px solid rgba(74,222,128,.4); }
+    .corner-tr { top:10px; right:10px; border-top:2px solid rgba(74,222,128,.4); border-right:2px solid rgba(74,222,128,.4); }
+    .corner-bl { bottom:10px; left:10px;  border-bottom:2px solid rgba(74,222,128,.4); border-left:2px solid rgba(74,222,128,.4); }
+    .corner-br { bottom:10px; right:10px; border-bottom:2px solid rgba(74,222,128,.4); border-right:2px solid rgba(74,222,128,.4); }
+
+    /* ── ENGAGEMENT CARD ── */
+    .eng-wrap { display: flex; align-items: center; gap: 18px; margin: 14px 0; }
+    .donut-svg { flex-shrink: 0; }
+    .eng-bar-row { margin-bottom: 8px; }
+    .eng-bar-header { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 4px; }
+    .eng-bar-track { height: 4px; border-radius: 2px; background: rgba(255,255,255,.05); overflow:hidden; }
+    .eng-bar-fill  { height: 100%; border-radius: 2px; transition: width .6s ease; }
+    .eng-badge {
+      display: inline-block; padding: 3px 10px; border-radius: 6px;
+      font-size: 11px; font-weight: 600; margin-bottom: 6px;
+    }
+    .eng-title { font-size: 14px; font-weight: 600; color: var(--text-main); margin-bottom: 4px; }
+    .eng-desc  { font-size: 11px; color: var(--text-muted); line-height: 1.5; }
+
+    /* ── CHART CARD ── */
+    .chart-wrap { position: relative; height: 170px; margin-top: 10px; }
+
+    /* ── RINGKASAN PAGE ── */
+    .hero-banner {
+      border-radius: var(--radius-lg);
+      background: #1a3a2a; border: 1px solid rgba(74,222,128,.14);
+      padding: 30px 22px; text-align: center; margin-bottom: 14px;
+      position: relative; overflow: hidden;
+    }
+    .hero-banner::before {
+      content:''; position:absolute; inset:0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(74,222,128,.07), transparent 70%);
+      pointer-events:none;
+    }
+    .hero-trophy { font-size: 44px; margin-bottom: 10px; }
+    .hero-title  { font-size: 20px; font-weight: 700; color: var(--text-main); margin-bottom: 5px; }
+    .hero-sub    { font-size: 12px; color: var(--text-muted); }
+    .sum-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 12px; margin-bottom: 14px; }
+    .sum-card { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius-md); padding: 13px; }
+    .sum-icon  { font-size: 16px; margin-bottom: 7px; }
+    .sum-label { font-size: 10px; color: var(--text-muted); }
+    .sum-val   { font-size: 22px; font-weight: 700; }
+    .sum-sub   { font-size: 10px; color: var(--text-dim); margin-top: 2px; }
+    .badge-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .badge-pill {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 13px; border-radius: 20px; font-size: 12px; font-weight: 500;
+      border: 1px solid;
+    }
+    .badge-active  { background: rgba(74,222,128,.12); border-color: rgba(74,222,128,.3); color: var(--green); }
+    .badge-default { background: rgba(255,255,255,.03); border-color: rgba(255,255,255,.09); color: var(--text-muted); }
+
+    /* ── PROGRESS BAR ENGAGEMENT ── */
+    .prog-track { height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); overflow:hidden; margin-top: 8px; }
+    .prog-fill  { height: 100%; border-radius: 3px; background: linear-gradient(90deg,#16a34a,#4ade80); transition: width .6s ease; }
+
+    /* ── RESPONSIF ── */
+    @media (max-width: 700px) {
+      .sidebar { width: 58px; min-width: 58px; }
+      .sb-logo-text, .sb-item span:last-child, .sb-footer-label, .status-badge span:not(.status-dot) { display:none; }
+      .sb-item { justify-content: center; }
+      .content { padding: 14px; }
+      .topbar  { padding: 14px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ══ SIDEBAR ══ -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-icon">AI</div>
+      <div>
+        <div class="sb-logo-title">Smart Classroom</div>
+        <div class="sb-logo-sub">Engagement Monitoring</div>
+      </div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-item active" onclick="showPage('realtime',this)">
+        <span>📊</span><span>Dashboard Real-time</span>
+      </div>
+      <div class="sb-item" onclick="showPage('ringkasan',this)">
+        <span>📋</span><span>Ringkasan Sesi</span>
+      </div>
+    </nav>
+    <div class="sb-footer">
+      <div class="sb-footer-label">🛜 Status Sistem</div>
+      <div class="status-badge">
+        <span class="status-dot off" id="status-dot"></span>
+        <span id="status-text">Standby</span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ══ MAIN ══ -->
+  <div class="main">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <div>
+        <div class="topbar-eyebrow">CTRL+V Architect</div>
+        <div class="topbar-title" id="page-title">Dashboard Guru</div>
+        <div class="topbar-sub">Pantau partisipasi siswa dari hasil computer vision secara sederhana.</div>
+      </div>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost" onclick="toggleNotif()">🔔 Notifikasi</button>
+        <button class="btn btn-primary" id="main-btn" onclick="mainAction()">▶ Mulai Kamera</button>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <div class="content">
+
+      <!-- ══ PAGE: REALTIME ══ -->
+      <div class="page active" id="page-realtime">
+        <div id="cam-error" class="alert alert-err" style="display:none">
+          ⚠️ <span id="cam-error-msg">Tidak bisa mengakses kamera.</span>
+        </div>
+
+        <!-- Stat cards -->
+        <div class="stat-grid">
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(74,222,128,.1)">👥</div>
+            <div class="stat-label">Total Siswa</div>
+            <div class="stat-val" id="s-total">0</div>
+            <div class="stat-sub">Terdeteksi kamera</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(96,165,250,.1)">✋</div>
+            <div class="stat-label">Angkat Tangan</div>
+            <div class="stat-val" id="s-angkat" style="color:var(--blue)">0</div>
+            <div class="stat-sub">Respons aktif</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(251,191,36,.1)">👁</div>
+            <div class="stat-label">Menghadap Depan</div>
+            <div class="stat-val" id="s-hadap" style="color:var(--yellow)">0</div>
+            <div class="stat-sub">Fokus ke guru/papan</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon" style="background:rgba(248,113,113,.1)">😔</div>
+            <div class="stat-label">Menunduk</div>
+            <div class="stat-val" id="s-nunduk" style="color:var(--red)">0</div>
+            <div class="stat-sub">Perlu perhatian</div>
+          </div>
+        </div>
+
+        <!-- Kamera + Engagement -->
+        <div class="two-col">
+
+          <!-- Kamera -->
+          <div class="card cam-panel">
+            <div class="cam-controls">
+              <div>
+                <div class="card-title">Live Kamera</div>
+                <div class="card-sub">Deteksi real-time dari computer vision</div>
+              </div>
+              <button class="btn btn-primary" id="cam-btn" onclick="toggleCamera()">▶ Start</button>
+            </div>
+            <div class="cam-box" id="cam-box">
+              <video id="cam-video" autoplay playsinline muted></video>
+              <div class="cam-idle" id="cam-idle">
+                <div class="cam-idle-icon">📷</div>
+                <p style="color:var(--text-muted);font-size:13px;font-weight:500">Kamera tidak aktif</p>
+                <p style="color:var(--text-dim);font-size:11px;margin-top:4px">Klik "Start" untuk memulai deteksi</p>
+              </div>
+              <!-- corners -->
+              <div class="corner corner-tl"></div>
+              <div class="corner corner-tr"></div>
+              <div class="corner corner-bl"></div>
+              <div class="corner corner-br"></div>
+              <!-- active overlays (hidden by default) -->
+              <div class="cam-badge" id="cam-badge" style="display:none">
+                <span class="status-dot blink"></span>
+                <span id="cam-badge-text">Mendeteksi... 0 siswa</span>
+              </div>
+              <div class="cam-overlay" id="cam-overlay" style="display:none">
+                <div class="cam-stat"><div class="cam-stat-val" style="color:var(--green)"  id="ov-hadap">0</div><div class="cam-stat-lbl">Hadap</div></div>
+                <div class="cam-stat"><div class="cam-stat-val" style="color:var(--blue)"   id="ov-angkat">0</div><div class="cam-stat-lbl">Tangan</div></div>
+                <div class="cam-stat"><div class="cam-stat-val" style="color:var(--red)"    id="ov-nunduk">0</div><div class="cam-stat-lbl">Nunduk</div></div>
+              </div>
+              <div class="scanline" id="scanline" style="display:none"></div>
+            </div>
+          </div>
+
+          <!-- Engagement Score -->
+          <div class="card">
+            <div class="card-title">Engagement Score</div>
+            <div class="card-sub" id="eng-time">Menunggu data...</div>
+
+            <div class="eng-wrap">
+              <!-- Donut SVG -->
+              <svg class="donut-svg" width="100" height="100" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(74,222,128,0.08)" stroke-width="9"/>
+                <circle id="donut-arc" cx="50" cy="50" r="38" fill="none"
+                  stroke="#22c55e" stroke-width="9" stroke-linecap="round"
+                  stroke-dasharray="0 238.76"
+                  stroke-dashoffset="59.69"
+                  style="transition:stroke-dasharray .6s ease"/>
+                <text id="donut-pct" x="50" y="46" text-anchor="middle" fill="#4ade80" font-size="18" font-weight="700">0%</text>
+                <text x="50" y="61" text-anchor="middle" fill="#6b7280" font-size="9">Engagement</text>
+              </svg>
+              <div style="flex:1">
+                <div class="eng-badge" id="eng-badge" style="background:rgba(74,222,128,.1);border:1px solid rgba(74,222,128,.25);color:var(--green)">—</div>
+                <div class="eng-title" id="eng-title">Menunggu kamera...</div>
+                <div class="eng-desc"  id="eng-desc">Nyalakan kamera agar deteksi engagement dapat dimulai.</div>
+              </div>
+            </div>
+
+            <!-- Progress bars -->
+            <div id="prog-bars" style="display:none">
+              <div class="eng-bar-row">
+                <div class="eng-bar-header"><span>Menghadap Depan</span><span id="pb-hadap-val" style="color:var(--green);font-weight:600">0%</span></div>
+                <div class="eng-bar-track"><div class="eng-bar-fill" id="pb-hadap" style="width:0%;background:var(--green)"></div></div>
+              </div>
+              <div class="eng-bar-row">
+                <div class="eng-bar-header"><span>Angkat Tangan</span><span id="pb-angkat-val" style="color:var(--blue);font-weight:600">0%</span></div>
+                <div class="eng-bar-track"><div class="eng-bar-fill" id="pb-angkat" style="width:0%;background:var(--blue)"></div></div>
+              </div>
+              <div class="eng-bar-row">
+                <div class="eng-bar-header"><span>Menunduk</span><span id="pb-nunduk-val" style="color:var(--red);font-weight:600">0%</span></div>
+                <div class="eng-bar-track"><div class="eng-bar-fill" id="pb-nunduk" style="width:0%;background:var(--red)"></div></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grafik Keaktifan -->
+        <div class="card">
+          <div class="card-title">Grafik Keaktifan</div>
+          <div class="card-sub">Engagement score berdasarkan waktu</div>
+          <div class="chart-wrap">
+            <canvas id="lineChart" role="img" aria-label="Grafik engagement score berdasarkan waktu">
+              Data engagement belum tersedia.
+            </canvas>
+          </div>
+        </div>
+      </div><!-- /page-realtime -->
+
+      <!-- ══ PAGE: RINGKASAN ══ -->
+      <div class="page" id="page-ringkasan">
+        <div class="hero-banner">
+          <div class="hero-trophy" id="r-trophy">📊</div>
+          <div class="hero-title"  id="r-class-title">Belum Ada Data Sesi</div>
+          <div class="hero-sub"    id="r-class-sub">Jalankan kamera terlebih dahulu untuk merekam sesi.</div>
+        </div>
+        <div class="sum-grid">
+          <div class="sum-card">
+            <div class="sum-icon">📈</div>
+            <div class="sum-label">Durasi Sesi</div>
+            <div class="sum-val" id="r-durasi" style="color:var(--blue)">—</div>
+            <div class="sum-sub" id="r-durasi-sub">—</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-icon">🎯</div>
+            <div class="sum-label">Rata-rata Engagement</div>
+            <div class="sum-val" id="r-eng" style="color:var(--green)">—</div>
+            <div class="sum-sub">Kategori aktif</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-icon">✋</div>
+            <div class="sum-label">Rata-rata Angkat Tangan</div>
+            <div class="sum-val" id="r-angkat" style="color:var(--yellow)">—</div>
+            <div class="sum-sub">Respons kelas</div>
+          </div>
+          <div class="sum-card">
+            <div class="sum-icon">😔</div>
+            <div class="sum-label">Rata-rata Menunduk</div>
+            <div class="sum-val" id="r-nunduk" style="color:var(--red)">—</div>
+            <div class="sum-sub">Cukup rendah</div>
+          </div>
+        </div>
+
+        <!-- Grafik ringkasan -->
+        <div class="card" style="margin-bottom:14px">
+          <div class="card-title">Riwayat Engagement</div>
+          <div class="card-sub">Data selama sesi berlangsung</div>
+          <div class="chart-wrap">
+            <canvas id="sumChart" role="img" aria-label="Riwayat engagement selama sesi">Data belum tersedia.</canvas>
+          </div>
+        </div>
+
+        <!-- Badges -->
+        <div class="card">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+            <div>
+              <div class="card-title">Achievement Badge</div>
+              <div class="card-sub">Badge berdasarkan hasil sesi</div>
+            </div>
+            <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="resetSession()">🔄 Sesi Baru</button>
+          </div>
+          <div class="badge-row" id="badge-row">
+            <div class="badge-pill badge-default">— Belum ada data —</div>
+          </div>
+        </div>
+      </div><!-- /page-ringkasan -->
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<script>
+// ══════════════════════════════════════════════════════════════
+//  STATE
+// ══════════════════════════════════════════════════════════════
+const API_URL      = "http://127.0.0.1:5000/api/latest";
+const POLL_MS      = 2000;   // polling interval ke backend
+
+let cameraOn       = false;
+let cameraStream   = null;
+let pollTimer      = null;
+let sessionStart   = null;
+let historyData    = [];     // [{time, value}, ...]
+let angkatHistory  = [];
+let nundukHistory  = [];
+let lastData       = null;
+
+// ══════════════════════════════════════════════════════════════
+//  CHART
+// ══════════════════════════════════════════════════════════════
+const chartDefaults = {
+  responsive: true, maintainAspectRatio: false,
+  scales: {
+    x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#6b7280", font: { size: 10 } } },
+    y: { min: 0, max: 100, grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#6b7280", font: { size: 10 }, stepSize: 25 } }
+  },
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: "#071209", titleColor: "#f0fdf4",
+      bodyColor: "#9ca3af", borderColor: "rgba(74,222,128,0.2)", borderWidth: 1,
+      callbacks: { label: ctx => ` ${ctx.parsed.y}% Engagement` }
+    }
+  }
+};
+
+const lineCtx = document.getElementById("lineChart").getContext("2d");
+const lineChart = new Chart(lineCtx, {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [{
+      data: [], borderColor: "#22c55e",
+      backgroundColor: "rgba(34,197,94,0.07)",
+      tension: 0.4, fill: true,
+      pointBackgroundColor: "#22c55e", pointRadius: 3
+    }]
+  },
+  options: { ...chartDefaults, animation: { duration: 300 } }
+});
+
+const sumCtx = document.getElementById("sumChart").getContext("2d");
+const sumChart = new Chart(sumCtx, {
+  type: "line",
+  data: {
+    labels: [],
+    datasets: [{
+      data: [], borderColor: "#22c55e",
+      backgroundColor: "rgba(34,197,94,0.07)",
+      tension: 0.4, fill: true,
+      pointBackgroundColor: "#22c55e", pointRadius: 3
+    }]
+  },
+  options: { ...chartDefaults, animation: { duration: 200 } }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  PAGE NAVIGATION
+// ══════════════════════════════════════════════════════════════
+function showPage(id, el) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".sb-item").forEach(i => i.classList.remove("active"));
+  document.getElementById("page-" + id).classList.add("active");
+  el.classList.add("active");
+
+  const titles = {
+    realtime:  "Dashboard Guru",
+    ringkasan: "Ringkasan Sesi Pembelajaran"
+  };
+  const btns = {
+    realtime:  cameraOn ? "⏹ Selesai Sesi" : "▶ Mulai Kamera",
+    ringkasan: "📊 Mulai Dashboard"
+  };
+  document.getElementById("page-title").textContent = titles[id];
+  document.getElementById("main-btn").textContent    = btns[id];
+
+  if (id === "ringkasan") updateRingkasan();
+}
+
+function mainAction() {
+  const activePage = document.querySelector(".page.active").id;
+  if (activePage === "page-realtime") {
+    toggleCamera();
+  } else {
+    showPage("realtime", document.querySelectorAll(".sb-item")[0]);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  KAMERA
+// ══════════════════════════════════════════════════════════════
+async function toggleCamera() {
+  if (cameraOn) { stopCamera(); return; }
+  hideError();
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({
+      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: "user" }
+    });
+    cameraStream = stream;
+    const vid = document.getElementById("cam-video");
+    vid.srcObject = stream;
+    await vid.play();
+    vid.style.display = "block";
+    document.getElementById("cam-idle").style.display    = "none";
+    document.getElementById("cam-badge").style.display   = "flex";
+    document.getElementById("cam-overlay").style.display = "flex";
+    document.getElementById("scanline").style.display    = "block";
+    document.getElementById("cam-btn").className  = "btn btn-danger";
+    document.getElementById("cam-btn").textContent = "⏹ Stop";
+    document.getElementById("main-btn").textContent = "⏹ Selesai Sesi";
+    setStatus(true);
+    cameraOn    = true;
+    sessionStart = Date.now();
+    startPolling();
+  } catch(err) {
+    showError("Tidak bisa mengakses kamera. Pastikan izin kamera diaktifkan di browser.");
+    console.error(err);
+  }
+}
+
+function stopCamera() {
+  if (cameraStream) {
+    cameraStream.getTracks().forEach(t => t.stop());
+    cameraStream = null;
+  }
+  const vid = document.getElementById("cam-video");
+  vid.srcObject = null;
+  vid.style.display = "none";
+  document.getElementById("cam-idle").style.display    = "flex";
+  document.getElementById("cam-badge").style.display   = "none";
+  document.getElementById("cam-overlay").style.display = "none";
+  document.getElementById("scanline").style.display    = "none";
+  document.getElementById("cam-btn").className   = "btn btn-primary";
+  document.getElementById("cam-btn").textContent  = "▶ Start";
+  document.getElementById("main-btn").textContent = "▶ Mulai Kamera";
+  setStatus(false);
+  cameraOn = false;
+  stopPolling();
+}
+
+// ══════════════════════════════════════════════════════════════
+//  POLLING DATA DARI BACKEND
+// ══════════════════════════════════════════════════════════════
+function startPolling() {
+  fetchData();
+  pollTimer = setInterval(fetchData, POLL_MS);
+}
+function stopPolling() {
+  clearInterval(pollTimer);
+}
+
+async function fetchData() {
+  try {
+    const res  = await fetch(API_URL, { cache: "no-store" });
+    const data = await res.json();
+    updateDashboard(data);
+    lastData = data;
+  } catch(err) {
+    // Backend belum aktif — tampilkan peringatan
+    document.getElementById("cam-error").style.display = "flex";
+    document.getElementById("cam-error-msg").textContent =
+      "⚠️ Backend Flask tidak terdeteksi. Jalankan: python backend/app.py";
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
+//  UPDATE UI
+// ══════════════════════════════════════════════════════════════
+function updateDashboard(d) {
+  hideError();
+
+  const total  = d.total_siswa      || 0;
+  const angkat = d.angkat_tangan    || 0;
+  const hadap  = d.menghadap_depan  || 0;
+  const nunduk = d.menunduk         || 0;
+  const eng    = Math.round(d.engagement_score || 0);
+
+  // Stat cards
+  setText("s-total",  total);
+  setText("s-angkat", angkat);
+  setText("s-hadap",  hadap);
+  setText("s-nunduk", nunduk);
+
+  // Camera overlay
+  setText("ov-hadap",  hadap);
+  setText("ov-angkat", angkat);
+  setText("ov-nunduk", nunduk);
+  setText("cam-badge-text", `Mendeteksi... ${total} siswa terdeteksi`);
+
+  // Donut chart
+  const circ = 238.76;
+  const filled = (eng / 100) * circ;
+  document.getElementById("donut-arc").setAttribute("stroke-dasharray", `${filled} ${circ - filled}`);
+  document.getElementById("donut-pct").textContent = eng + "%";
+
+  // Engagement label
+  const info = engLabel(eng);
+  const badge = document.getElementById("eng-badge");
+  badge.textContent = info.label;
+  badge.style.background = info.bg;
+  badge.style.border = `1px solid ${info.color}44`;
+  badge.style.color  = info.color;
+  document.getElementById("eng-title").textContent = info.label;
+  document.getElementById("eng-desc").textContent  = info.desc;
+
+  const ts = d.timestamp ? new Date(d.timestamp) : new Date();
+  document.getElementById("eng-time").textContent =
+    `Update terakhir ${ts.toLocaleTimeString("id-ID",{hour:"2-digit",minute:"2-digit"})}`;
+
+  // Progress bars
+  if (total > 0) {
+    document.getElementById("prog-bars").style.display = "block";
+    const ph = Math.round(hadap/total*100);
+    const pa = Math.round(angkat/total*100);
+    const pn = Math.round(nunduk/total*100);
+    setProg("hadap",  ph);
+    setProg("angkat", pa);
+    setProg("nunduk", pn);
+    angkatHistory.push(pa);
+    nundukHistory.push(pn);
+  }
+
+  // Grafik
+  if (d.history && d.history.length) {
+    historyData = d.history;
+    lineChart.data.labels   = d.history.map(h => h.time);
+    lineChart.data.datasets[0].data = d.history.map(h => h.value);
+    lineChart.update("none");
+  }
+}
+
+function updateRingkasan() {
+  if (!historyData.length) return;
+
+  const vals   = historyData.map(h => h.value);
+  const avgEng = Math.round(vals.reduce((a,b)=>a+b,0)/vals.length);
+  const avgA   = angkatHistory.length ? Math.round(angkatHistory.reduce((a,b)=>a+b,0)/angkatHistory.length) : 0;
+  const avgN   = nundukHistory.length ? Math.round(nundukHistory.reduce((a,b)=>a+b,0)/nundukHistory.length) : 0;
+
+  const dur = sessionStart ? Math.round((Date.now()-sessionStart)/60000) : 0;
+  const sc  = sessionClass(avgEng);
+
+  document.getElementById("r-trophy").textContent      = sc.icon;
+  document.getElementById("r-class-title").textContent = sc.title;
+  document.getElementById("r-class-sub").textContent   = sc.sub;
+  document.getElementById("r-durasi").textContent      = dur + "m";
+  document.getElementById("r-durasi-sub").textContent  = `${historyData.length} data tercatat`;
+  document.getElementById("r-eng").textContent         = avgEng + "%";
+  document.getElementById("r-angkat").textContent      = avgA + "%";
+  document.getElementById("r-nunduk").textContent      = avgN + "%";
+
+  sumChart.data.labels              = historyData.map(h => h.time);
+  sumChart.data.datasets[0].data    = historyData.map(h => h.value);
+  sumChart.update("none");
+
+  // Badges
+  const badges = [
+    { icon:"🏆", label: sc.title,             active: true },
+    { icon:"🙋", label: "Banyak Bertanya",     active: avgA >= 25 },
+    { icon:"🎯", label: "Fokus Penuh",          active: avgEng >= 70 },
+    { icon:"📊", label: "Data Terekam Stabil",  active: historyData.length >= 6 },
+  ];
+  document.getElementById("badge-row").innerHTML = badges.map(b =>
+    `<div class="badge-pill ${b.active?"badge-active":"badge-default"}">${b.icon} ${b.label}</div>`
+  ).join("");
+}
+
+function resetSession() {
+  historyData   = [];
+  angkatHistory = [];
+  nundukHistory = [];
+  sessionStart  = cameraOn ? Date.now() : null;
+  lineChart.data.labels = []; lineChart.data.datasets[0].data = []; lineChart.update();
+  sumChart.data.labels  = []; sumChart.data.datasets[0].data  = []; sumChart.update();
+  showPage("realtime", document.querySelectorAll(".sb-item")[0]);
+}
+
+// ══════════════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════════════
+function engLabel(s) {
+  if (s >= 80) return { label:"Kelas Sangat Aktif", color:"#4ade80", bg:"rgba(74,222,128,.1)", desc:"Excellent! Kelas sangat antusias. Lanjutkan dengan materi lebih dalam." };
+  if (s >= 60) return { label:"Kelas Aktif",         color:"#4ade80", bg:"rgba(74,222,128,.1)", desc:"Kelas menunjukkan respons yang baik. Pertahankan interaksi singkat." };
+  if (s >= 40) return { label:"Cukup Aktif",          color:"#fbbf24", bg:"rgba(251,191,36,.1)", desc:"Engagement sedang. Coba tambahkan pertanyaan interaktif." };
+  return              { label:"Kurang Aktif",          color:"#f87171", bg:"rgba(248,113,113,.1)",desc:"Engagement rendah. Pertimbangkan jeda atau aktivitas ringan." };
+}
+
+function sessionClass(avg) {
+  if (avg >= 75) return { title:"Kelas Emas",   icon:"🏆", sub:"Sesi pembelajaran memiliki engagement tinggi dan respons siswa aktif." };
+  if (avg >= 55) return { title:"Kelas Perak",  icon:"🥈", sub:"Engagement baik dengan partisipasi stabil sepanjang sesi." };
+  return               { title:"Kelas Perlu Perhatian", icon:"📚", sub:"Engagement perlu ditingkatkan. Coba variasikan metode mengajar." };
+}
+
+function setProg(key, val) {
+  document.getElementById("pb-"+key).style.width      = val + "%";
+  document.getElementById("pb-"+key+"-val").textContent = val + "%";
+}
+
+function setText(id, val) { document.getElementById(id).textContent = val; }
+
+function setStatus(on) {
+  document.getElementById("status-dot").className  = "status-dot" + (on ? " blink" : " off");
+  document.getElementById("status-text").textContent = on ? "Kamera Aktif" : "Standby";
+}
+
+function showError(msg) {
+  document.getElementById("cam-error").style.display    = "flex";
+  document.getElementById("cam-error-msg").textContent  = msg;
+}
+function hideError() { document.getElementById("cam-error").style.display = "none"; }
+
+function toggleNotif() { alert("Tidak ada notifikasi baru."); }
+</script>
+</body>
+</html>
