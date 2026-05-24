@@ -158,12 +158,15 @@
         <div class="tb-sub">Pantau partisipasi siswa dari hasil computer vision secara sederhana.</div>
       </div>
       <div class="tb-actions">
-        <div class="live-ring" id="live-ring">
-          <span class="dot off" id="live-dot"></span>
-          <span id="live-text">Menunggu YOLO...</span>
-        </div>
         <button class="btn btn-ghost">🔔 Notifikasi</button>
-        <button class="btn btn-primary" id="main-btn" onclick="mainAction()">📋 Ringkasan Sesi</button>
+        <button class="btn" id="cam-start-btn" onclick="startCamera()"
+          style="background:#14532d;border-color:#22c55e;color:#4ade80">
+          ▶ Mulai Kamera
+        </button>
+        <button class="btn" id="cam-stop-btn" onclick="stopCamera()"
+          style="background:#7f1d1d;border-color:#ef4444;color:#fca5a5;display:none">
+          ⏹ Hentikan Kamera
+        </button>
       </div>
     </header>
 
@@ -173,7 +176,7 @@
       <div class="page active" id="page-realtime">
 
         <!-- Status bar -->
-        <div id="status-bar" class="alert alert-warn">
+        <div id="status-bar" class="alert alert-warn" style="display:none">
           ⏳ Menunggu data dari YOLO... Pastikan <b>mainYOLO.py</b> sudah dijalankan.
         </div>
 
@@ -226,8 +229,8 @@
               <div class="corner c-br"></div>
               <div class="yolo-idle" id="yolo-idle">
                 <div class="yolo-idle-ico">🎥</div>
-                <p style="color:var(--muted);font-size:13px;font-weight:500">Menunggu data YOLO</p>
-                <p style="color:var(--dim);font-size:11px;margin-top:4px">Jalankan <code style="background:#0d1f14;padding:2px 6px;border-radius:4px;color:var(--green)">python mainYOLO.py</code></p>
+                <p style="color:var(--muted);font-size:13px;font-weight:500">Kamera belum dinyalakan</p>
+                <p style="color:var(--dim);font-size:11px;margin-top:4px">Tekan <span style="color:var(--green);font-weight:600">▶ Mulai Kamera</span> untuk memulai</p>
               </div>
               <!-- Overlay saat data masuk -->
               <div id="yolo-active" style="display:none;width:100%;height:100%;flex-direction:column;align-items:center;justify-content:center;gap:16px;padding:20px">
@@ -364,6 +367,8 @@
 <script>
 // ══ CONFIG ══
 const API      = "http://127.0.0.1:5000/api/latest";
+const API_CTRL = "http://127.0.0.1:5000/api/control";
+const API_STAT = "http://127.0.0.1:5000/api/status";
 const POLL_MS  = 2000;
 
 // ══ STATE ══
@@ -374,6 +379,9 @@ let sessionStart = null;
 let lastTS     = null;
 let pollTimer  = null;
 let dataReceived = false;
+let cameraRunning = false;
+let lastDataTime  = null;   // waktu terakhir data masuk (ms)
+const DATA_TIMEOUT_MS = 6000; // anggap kamera mati jika >6 detik tanpa data baru
 
 // ══ CHARTS ══
 const mkChart = (id) => new Chart(document.getElementById(id).getContext("2d"), {
@@ -395,6 +403,101 @@ const mkChart = (id) => new Chart(document.getElementById(id).getContext("2d"), 
 const lineChart = mkChart("lineChart");
 const sumChart  = mkChart("sumChart");
 
+// ══ TOMBOL START / STOP ══
+async function startCamera() {
+  const btn = document.getElementById("cam-start-btn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Memulai...";
+  try {
+    const res  = await fetch(API_CTRL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "start" })
+    });
+    const data = await res.json();
+    if (res.ok && (data.status === "started" || data.status === "already_running")) {
+      setCameraUI(true);
+    } else {
+      alert("Gagal memulai kamera: " + (data.error || data.status));
+      btn.disabled = false;
+      btn.textContent = "▶ Mulai Kamera";
+    }
+  } catch(e) {
+    alert("Tidak bisa terhubung ke backend Flask.\nPastikan app.py sudah dijalankan.");
+    btn.disabled = false;
+    btn.textContent = "▶ Mulai Kamera";
+  }
+}
+
+async function stopCamera() {
+  const btn = document.getElementById("cam-stop-btn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Menghentikan...";
+  try {
+    await fetch(API_CTRL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "stop" })
+    });
+  } catch(e) { /* tetap lanjutkan reset UI */ }
+  setCameraUI(false);
+  resetDashboard();
+}
+
+// ══ SET TAMPILAN SESUAI STATE KAMERA ══
+function setCameraUI(running) {
+  cameraRunning = running;
+  document.getElementById("cam-start-btn").style.display = running ? "none"  : "inline-flex";
+  document.getElementById("cam-stop-btn").style.display  = running ? "inline-flex" : "none";
+  document.getElementById("cam-start-btn").disabled = false;
+  document.getElementById("cam-stop-btn").disabled  = false;
+  document.getElementById("cam-start-btn").textContent = "▶ Mulai Kamera";
+  document.getElementById("cam-stop-btn").textContent  = "⏹ Hentikan Kamera";
+  if (!running) setOnline(false);
+}
+
+// ══ RESET DASHBOARD KE STATE IDLE ══
+function resetDashboard() {
+  dataReceived = false;
+  lastTS       = null;
+  lastDataTime = null;
+
+  // Status bar
+  const sb = document.getElementById("status-bar");
+  sb.className = "alert alert-warn";
+  sb.innerHTML = "";
+  sb.style.display = "none";
+
+  // Stat cards
+  ["v-total","v-angkat","v-hadap","v-nunduk"].forEach(id => {
+    document.getElementById(id).textContent = "—";
+  });
+
+  // YOLO panel — kembalikan ke idle
+  document.getElementById("yolo-idle").style.display   = "";
+  document.getElementById("yolo-active").style.display = "none";
+  document.getElementById("scanline").style.display    = "none";
+  document.getElementById("yolo-badge").style.display  = "none";
+  document.getElementById("yolo-last-update").textContent = "Menunggu data masuk...";
+
+  // Big engagement reset
+  document.getElementById("big-eng").textContent   = "0%";
+  document.getElementById("big-label").textContent = "—";
+
+  // Donut reset
+  document.getElementById("donut-arc").setAttribute("stroke-dasharray", "0 238.76");
+  document.getElementById("donut-pct").textContent = "0%";
+  document.getElementById("eng-time").textContent  = "Menunggu data...";
+
+  // Badge & desc
+  document.getElementById("eng-badge").textContent = "Menunggu...";
+  document.getElementById("eng-title").textContent = "Belum ada data";
+  document.getElementById("eng-desc").textContent  = "Tekan Mulai Kamera agar data engagement masuk ke dashboard.";
+
+  // Progress bars
+  ["hadap","angkat","nunduk"].forEach(k => setBar(k, 0));
+}
+
 // ══ POLLING ══
 function startPolling() {
   fetchData();
@@ -402,18 +505,49 @@ function startPolling() {
 }
 
 async function fetchData() {
+  // Jika kamera tidak running, cukup cek status dari backend (subprocess bisa mati sendiri)
+  if (!cameraRunning) {
+    try {
+      const res  = await fetch(API_STAT + "?t=" + Date.now(), { cache:"no-store" });
+      const data = await res.json();
+      // Jika backend bilang kamera masih jalan (mis. distart manual), sinkronkan UI
+      if (data.running && !cameraRunning) setCameraUI(true);
+    } catch(e) { /* backend belum jalan */ }
+    return;
+  }
+
   try {
     const res  = await fetch(API + "?t=" + Date.now(), { cache:"no-store" });
     const data = await res.json();
 
-    // Cek apakah data sudah pernah diupdate (bukan data kosong awal)
+    // Sinkronkan jika backend ternyata sudah stop (mis. subprocess mati sendiri karena ESC)
+    if (data.camera_running === false && cameraRunning) {
+      setCameraUI(false);
+      resetDashboard();
+      return;
+    }
+
     if (data.timestamp !== lastTS) {
-      lastTS = data.timestamp;
+      lastTS       = data.timestamp;
+      lastDataTime = Date.now();
       updateUI(data);
       if (!dataReceived) {
         dataReceived = true;
         sessionStart = Date.now();
         setOnline(true);
+      }
+    } else {
+      // Timestamp tidak berubah — cek timeout data
+      if (dataReceived && lastDataTime && (Date.now() - lastDataTime) > DATA_TIMEOUT_MS) {
+        // Cek ke backend apakah kamera masih running
+        try {
+          const sr = await fetch(API_STAT + "?t=" + Date.now(), { cache:"no-store" });
+          const sd = await sr.json();
+          if (!sd.running) {
+            setCameraUI(false);
+            resetDashboard();
+          }
+        } catch(e) { /* ignore */ }
       }
     }
   } catch(e) {
@@ -434,6 +568,7 @@ function updateUI(d) {
   // Status bar
   const sb = document.getElementById("status-bar");
   sb.className = "alert alert-ok";
+  sb.style.display = "";
   sb.innerHTML = `✅ Data YOLO diterima — update terakhir: <b>${timeStr}</b>`;
 
   // Stat cards dengan animasi pulse
@@ -541,19 +676,13 @@ function showPage(id, el) {
   document.getElementById("main-btn").textContent   = id==="realtime" ? "📋 Ringkasan Sesi" : "📊 Dashboard";
   if (id==="ringkasan") updateRingkasan();
 }
-function mainAction() {
-  const active = document.querySelector(".page.active").id;
-  const items  = document.querySelectorAll(".sb-item");
-  if (active==="page-realtime") showPage("ringkasan", items[1]);
-  else showPage("realtime", items[0]);
-}
 
 // ══ STATUS ══
 function setOnline(on) {
   const states = {
-    dot:["sys-dot","live-dot","yolo-dot"],
-    text:["sys-text","live-text","yolo-status-text"],
-    labels: on ? ["Aktif","YOLO Aktif","Online"] : ["Standby","Menunggu YOLO...","Offline"]
+    dot:["sys-dot","yolo-dot"],
+    text:["sys-text","yolo-status-text"],
+    labels: on ? ["Aktif","Online"] : ["Standby","Menunggu YOLO...","Offline"]
   };
   states.dot.forEach(id => {
     const el = document.getElementById(id);
