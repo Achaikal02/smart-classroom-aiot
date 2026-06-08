@@ -6,6 +6,29 @@
   <title>Smart Classroom — Engagement Monitoring</title>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <style>
+     /* Absensi quick-link badge */
+    .att-quick-card {
+      background: linear-gradient(135deg, #174c84, #2563eb);
+      border-radius: 20px;
+      padding: 20px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: white;
+      box-shadow: 0 8px 24px rgba(37,99,235,.3);
+      cursor: pointer;
+      transition: all .25s;
+    }
+    .att-quick-card:hover { transform: translateY(-3px); filter: brightness(1.05); }
+    .att-quick-ico { font-size: 36px; }
+    .att-quick-t { font-size: 16px; font-weight: 700; }
+    .att-quick-s { font-size: 11px; opacity: .75; margin-top: 3px; }
+    .att-quick-btn {
+      padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700;
+      background: rgba(255,255,255,.2); border: 1px solid rgba(255,255,255,.3);
+      color: white; cursor: pointer; font-family: inherit; transition: all .2s;
+    }
+    .att-quick-btn:hover { background: rgba(255,255,255,.35); }
     *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
     :root{
       --bg:#edf4fb;
@@ -237,6 +260,7 @@
       <button class="sb-item active" onclick="showPage('realtime',this)">📊 Dashboard Real-time</button>
       <button class="sb-item"        onclick="showPage('ringkasan',this)">📋 Ringkasan Sesi</button>
       <button class="sb-item"        onclick="showPage('laporan',this)">📁 Riwayat Laporan</button>
+      <button class="sb-item" onclick="goAttendance()">✅ Absensi Siswa</button>
     </nav>
     <div class="sb-foot">
       <div class="sb-guru" id="sb-guru-name">👤 —</div>
@@ -393,7 +417,6 @@
           <div class="chart-wrap"><canvas id="lineChart"></canvas></div>
         </div>
       </div>
-
       <!-- ══ PAGE: RINGKASAN ══ -->
       <div class="page" id="page-ringkasan">
         <div class="hero">
@@ -416,6 +439,7 @@
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
             <div><div class="card-title">Achievement Badge</div><div class="card-sub">Badge berdasarkan hasil sesi</div></div>
             <button class="btn btn-ghost" style="font-size:11px;padding:5px 12px" onclick="resetSession()">🔄 Sesi Baru</button>
+            
           </div>
           <div class="badge-row" id="badge-row">
             <div class="badge-pill badge-off">— Belum ada data —</div>
@@ -871,6 +895,10 @@ function resetSession() {
   sumChart.data.labels=[];  sumChart.data.datasets[0].data=[];  sumChart.update();
   resetDashboard();
   showPage("realtime", document.querySelectorAll(".sb-item")[0]);
+}
+function goAttendance() {
+  const guru = encodeURIComponent(guruName || 'Guru');
+  window.location.href = `attendance.html?user=${guru}`;
 }
 
 // ══ NAVIGASI ══

@@ -1,0 +1,129 @@
+{
+  "guru": "Guru",
+  "tanggal": "08 June 2026",
+  "waktu": "20:46:40",
+  "durasi_menit": 2,
+  "avg_engagement": 49,
+  "avg_angkat_tangan": 21,
+  "avg_menunduk": 3,
+  "total_data": 29,
+  "verdict": "Kelas Perlu Perhatian",
+  "history": [
+    {
+      "time": "4.220",
+      "value": 0
+    },
+    {
+      "time": "6.314",
+      "value": 24.9
+    },
+    {
+      "time": "8.415",
+      "value": 35.2
+    },
+    {
+      "time": "0.632",
+      "value": 38.7
+    },
+    {
+      "time": "2.649",
+      "value": 39.6
+    },
+    {
+      "time": "4.831",
+      "value": 39.9
+    },
+    {
+      "time": "6.905",
+      "value": 73.3
+    },
+    {
+      "time": "8.953",
+      "value": 91.5
+    },
+    {
+      "time": "1.021",
+      "value": 97.3
+    },
+    {
+      "time": "3.088",
+      "value": 99.1
+    },
+    {
+      "time": "5.354",
+      "value": 99.7
+    },
+    {
+      "time": "7.457",
+      "value": 83.3
+    },
+    {
+      "time": "9.666",
+      "value": 53.9
+    },
+    {
+      "time": "1.751",
+      "value": 44.5
+    },
+    {
+      "time": "3.806",
+      "value": 41.4
+    },
+    {
+      "time": "6.109",
+      "value": 40.4
+    },
+    {
+      "time": "8.417",
+      "value": 40.1
+    },
+    {
+      "time": "0.451",
+      "value": 40
+    },
+    {
+      "time": "2.543",
+      "value": 40
+    },
+    {
+      "time": "4.573",
+      "value": 40
+    },
+    {
+      "time": "6.912",
+      "value": 31.7
+    },
+    {
+      "time": "9.267",
+      "value": 31.3
+    },
+    {
+      "time": "1.551",
+      "value": 37.2
+    },
+    {
+      "time": "3.789",
+      "value": 39.1
+    },
+    {
+      "time": "5.831",
+      "value": 39.9
+    },
+    {
+      "time": "7.879",
+      "value": 40
+    },
+    {
+      "time": "9.919",
+      "value": 56.6
+    },
+    {
+      "time": "1.967",
+      "value": 51.1
+    },
+    {
+      "time": "3.999",
+      "value": 43.6
+    }
+  ]
+}

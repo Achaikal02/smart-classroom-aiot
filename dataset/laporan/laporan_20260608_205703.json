@@ -1,0 +1,65 @@
+{
+  "guru": "Guru",
+  "tanggal": "08 June 2026",
+  "waktu": "20:57:03",
+  "durasi_menit": 1,
+  "avg_engagement": 61,
+  "avg_angkat_tangan": 50,
+  "avg_menunduk": 0,
+  "total_data": 13,
+  "verdict": "Kelas Perak",
+  "history": [
+    {
+      "time": "7.649",
+      "value": 0
+    },
+    {
+      "time": "9.737",
+      "value": 30.7
+    },
+    {
+      "time": "1.771",
+      "value": 38.9
+    },
+    {
+      "time": "3.823",
+      "value": 83.5
+    },
+    {
+      "time": "5.875",
+      "value": 98
+    },
+    {
+      "time": "7.983",
+      "value": 53.7
+    },
+    {
+      "time": "0.119",
+      "value": 41.4
+    },
+    {
+      "time": "2.186",
+      "value": 40.2
+    },
+    {
+      "time": "4.534",
+      "value": 40.1
+    },
+    {
+      "time": "6.611",
+      "value": 77.4
+    },
+    {
+      "time": "8.715",
+      "value": 91.5
+    },
+    {
+      "time": "0.838",
+      "value": 96.8
+    },
+    {
+      "time": "3.177",
+      "value": 99
+    }
+  ]
+}

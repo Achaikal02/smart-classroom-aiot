@@ -3,7 +3,7 @@
 # =========================
 # KAMERA
 # =========================
-CAMERA_INDEX  = 1
+CAMERA_INDEX  = 0
 FRAME_WIDTH   = 640
 FRAME_HEIGHT  = 480
 
@@ -47,5 +47,11 @@ ENGAGEMENT_SMOOTHING = 0.85
 # =========================
 # BACKEND FLASK (dashboard)
 # =========================
-BACKEND_URL   = "http://127.0.0.1:5000/api/data"  # URL endpoint Flask lokal
-SEND_INTERVAL = 2                                   # detik antar pengiriman data
+BACKEND_URL                  = "http://127.0.0.1:5000/api/data"          # URL endpoint Flask lokal
+BACKEND_STUDENTS_URL         = "http://127.0.0.1:5000/api/students"      # daftar siswa terdaftar
+BACKEND_ATTENDANCE_MARK_URL  = "http://127.0.0.1:5000/api/attendance/mark"
+SEND_INTERVAL                = 2                                       # detik antar pengiriman data
+STUDENT_CONFIDENCE_THRESHOLD = 80
+FACE_MIN_SIZE                = (60, 60)
+STUDENT_MODEL_REFRESH_SEC    = 30
+ATTENDANCE_COOLDOWN_SEC      = 5

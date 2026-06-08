@@ -123,16 +123,67 @@ def decode_bgr(b64str):
     arr = np.frombuffer(base64.b64decode(b64str), dtype=np.uint8)
     return cv2.imdecode(arr, cv2.IMREAD_COLOR)
 
+def normalize_face(face):
+    if face is None or getattr(face, 'size', 0) == 0:
+        return None
+    if len(face.shape) == 3:
+        face = cv2.cvtColor(face, cv2.COLOR_BGR2GRAY)
+    try:
+        face = cv2.resize(face, (200, 200))
+    except Exception:
+        return None
+    return cv2.equalizeHist(face)
+
+
 def extract_face_gray(bgr_frame):
     """Deteksi wajah, kembalikan (crop_gray, x,y,w,h) atau None."""
-    gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
+    if bgr_frame is None or getattr(bgr_frame, 'size', 0) == 0:
+        return None, None
+    try:
+        gray = cv2.cvtColor(bgr_frame, cv2.COLOR_BGR2GRAY)
+    except Exception:
+        return None, None
     gray = cv2.equalizeHist(gray)
-    faces = face_cascade.detectMultiScale(gray, 1.1, 5, minSize=(60, 60))
+    faces = face_cascade.detectMultiScale(gray, 1.05, 5, minSize=(60, 60))
     if len(faces) == 0:
         return None, None
     x, y, w, h = max(faces, key=lambda f: f[2]*f[3])  # ambil wajah terbesar
-    crop = cv2.resize(gray[y:y+h, x:x+w], (200, 200))
-    return crop, (x, y, w, h)
+    crop = gray[y:y+h, x:x+w]
+    return normalize_face(crop), (x, y, w, h)
+
+
+def load_student_recognizer():
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("SELECT id, nama, foto_path FROM students WHERE foto_path IS NOT NULL")
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+
+    faces = []
+    labels = []
+    label_map = {}
+    for row in rows:
+        foto_path = row["foto_path"]
+        if not foto_path or not os.path.exists(foto_path):
+            continue
+        img = cv2.imread(foto_path, cv2.IMREAD_GRAYSCALE)
+        if img is None:
+            continue
+        face, _ = extract_face_gray(cv2.cvtColor(img, cv2.COLOR_GRAY2BGR))
+        if face is None:
+            face = normalize_face(img)
+        if face is None:
+            continue
+        faces.append(face)
+        labels.append(int(row["id"]))
+        label_map[int(row["id"])] = row["nama"]
+
+    if not faces:
+        return None, {}
+
+    recognizer = cv2.face.LBPHFaceRecognizer_create()
+    recognizer.train(faces, np.array(labels, dtype=np.int32))
+    return recognizer, label_map
 
 # ════════════════════════════════════════════
 #  STATE
@@ -359,6 +410,251 @@ def index():
 @app.route("/<path:filename>")
 def static_files(filename):
     return send_from_directory(FRONTEND_DIR, filename)
+# ════════════════════════════════════════════
+#  DATABASE HELPER
+# ════════════════════════════════════════════
+import sqlite3
+
+DB_PATH     = os.path.join(BASE_DIR, "database.db")
+STUDENT_DIR = os.path.join(ROOT_DIR, "dataset", "siswa")
+os.makedirs(STUDENT_DIR, exist_ok=True)
+
+def get_db():
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+# ════════════════════════════════════════════
+#  ENDPOINT: ABSENSI SISWA
+# ════════════════════════════════════════════
+
+@app.route("/api/students/register", methods=["POST"])
+def register_student():
+    data  = request.get_json() or {}
+    nama  = data.get("nama",  "").strip()
+    kelas = data.get("kelas", "").strip()
+    nisn  = data.get("nisn",  "").strip()
+    foto  = data.get("foto",  "")
+    if not nama or not kelas:
+        return jsonify({"status": "error", "message": "Nama dan kelas wajib diisi"}), 400
+    foto_path = None
+    if foto:
+        try:
+            safe_name = nama.replace(" ", "_")
+            fpath     = os.path.join(STUDENT_DIR, f"{safe_name}.jpg")
+            frame     = decode_bgr(foto)
+            cv2.imwrite(fpath, frame)
+            foto_path = fpath
+        except Exception as e:
+            print(f"[REGISTER] Gagal simpan foto: {e}")
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(
+        "INSERT INTO students (nama, kelas, nisn, foto_path) VALUES (?, ?, ?, ?)",
+        (nama.title(), kelas.upper(), nisn, foto_path)
+    )
+    conn.commit()
+    student_id = cur.lastrowid
+    conn.close()
+    return jsonify({"status": "ok", "id": student_id, "nama": nama.title()})
+
+
+@app.route("/api/students", methods=["GET"])
+def list_students():
+    kelas = request.args.get("kelas", "").strip()
+    conn  = get_db()
+    cur   = conn.cursor()
+    if kelas:
+        cur.execute(
+            "SELECT id, nama, kelas, nisn, foto_path, created_at FROM students WHERE kelas=? ORDER BY nama",
+            (kelas.upper(),)
+        )
+    else:
+        cur.execute(
+            "SELECT id, nama, kelas, nisn, foto_path, created_at FROM students ORDER BY kelas, nama"
+        )
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    return jsonify({"students": rows})
+
+
+@app.route("/api/students/recognize", methods=["POST"])
+def recognize_student():
+    data = request.get_json() or {}
+    image = data.get("image", "")
+    if not image:
+        return jsonify({"status": "error", "message": "Gambar tidak ditemukan"}), 400
+
+    if image.startswith("data:"):
+        parts = image.split(",", 1)
+        if len(parts) == 2:
+            image = parts[1]
+
+    try:
+        frame = decode_bgr(image)
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Gagal decode gambar: {e}"}), 400
+
+    if frame is None or getattr(frame, 'size', 0) == 0:
+        return jsonify({"status": "error", "message": "Gambar tidak valid"}), 400
+
+    crop, _ = extract_face_gray(frame)
+    if crop is None:
+        return jsonify({"status": "unknown", "message": "Wajah tidak terdeteksi"})
+
+    recognizer, label_map = load_student_recognizer()
+    if recognizer is None:
+        return jsonify({"status": "unknown", "message": "Tidak ada foto siswa untuk pengenalan"})
+
+    try:
+        crop = normalize_face(crop)
+        if crop is None:
+            return jsonify({"status": "unknown", "message": "Wajah tidak valid"})
+        label, confidence = recognizer.predict(crop)
+        print(f"[RECOGNIZE] label={label}, confidence={confidence}")
+    except Exception as e:
+        return jsonify({"status": "error", "message": f"Pengenalan gagal: {e}"}), 500
+
+    THRESHOLD = 80
+    if confidence <= THRESHOLD and label in label_map:
+        match_pct = round(max(0, (THRESHOLD - confidence) / THRESHOLD * 100), 1)
+        return jsonify({
+            "status": "ok",
+            "student_id": int(label),
+            "nama": label_map[label],
+            "confidence": match_pct
+        })
+    return jsonify({"status": "unknown", "confidence": round(confidence, 1)})
+
+
+@app.route("/api/attendance/mark", methods=["POST"])
+def mark_attendance():
+    data       = request.get_json() or {}
+    student_id = data.get("student_id")
+    status     = data.get("status",     "hadir")
+    keterangan = data.get("keterangan", "")
+    tanggal    = datetime.now().strftime("%Y-%m-%d")
+    waktu      = datetime.now().strftime("%H:%M:%S")
+    guru       = logged_in_user or "—"
+    if not student_id:
+        return jsonify({"status": "error", "message": "student_id wajib"}), 400
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute(
+        "SELECT id, status FROM attendance WHERE student_id=? AND tanggal=?",
+        (student_id, tanggal)
+    )
+    existing = cur.fetchone()
+    if existing:
+        cur.execute(
+            "UPDATE attendance SET status=?, keterangan=?, waktu=? WHERE id=?",
+            (status, keterangan, waktu, existing["id"])
+        )
+        conn.commit()
+        conn.close()
+        return jsonify({"status": "ok", "action": "updated", "tanggal": tanggal, "waktu": waktu})
+    cur.execute(
+        "INSERT INTO attendance (student_id, tanggal, waktu, status, keterangan, created_by) VALUES (?,?,?,?,?,?)",
+        (student_id, tanggal, waktu, status, keterangan, guru)
+    )
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "action": "created", "tanggal": tanggal, "waktu": waktu})
+
+
+@app.route("/api/attendance/bulk", methods=["POST"])
+def bulk_attendance():
+    data    = request.get_json() or {}
+    records = data.get("records", [])
+    tanggal = datetime.now().strftime("%Y-%m-%d")
+    waktu   = datetime.now().strftime("%H:%M:%S")
+    guru    = logged_in_user or "—"
+    if not records:
+        return jsonify({"status": "error", "message": "records kosong"}), 400
+    conn = get_db()
+    cur  = conn.cursor()
+    saved = 0
+    for rec in records:
+        sid    = rec.get("student_id")
+        status = rec.get("status", "hadir")
+        ket    = rec.get("keterangan", "")
+        if not sid:
+            continue
+        cur.execute("SELECT id FROM attendance WHERE student_id=? AND tanggal=?", (sid, tanggal))
+        row = cur.fetchone()
+        if row:
+            cur.execute(
+                "UPDATE attendance SET status=?, keterangan=?, waktu=? WHERE id=?",
+                (status, ket, waktu, row["id"])
+            )
+        else:
+            cur.execute(
+                "INSERT INTO attendance (student_id, tanggal, waktu, status, keterangan, created_by) VALUES (?,?,?,?,?,?)",
+                (sid, tanggal, waktu, status, ket, guru)
+            )
+        saved += 1
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok", "saved": saved, "tanggal": tanggal})
+
+
+@app.route("/api/attendance", methods=["GET"])
+def get_attendance():
+    tanggal = request.args.get("tanggal", datetime.now().strftime("%Y-%m-%d"))
+    kelas   = request.args.get("kelas",   "").strip()
+    conn  = get_db()
+    cur   = conn.cursor()
+    query = """
+        SELECT s.id, s.nama, s.kelas, s.nisn,
+               COALESCE(a.status, 'belum') AS status,
+               a.waktu, a.keterangan
+        FROM   students s
+        LEFT   JOIN attendance a
+               ON  s.id = a.student_id
+               AND a.tanggal = ?
+    """
+    params = [tanggal]
+    if kelas:
+        query  += " WHERE s.kelas = ?"
+        params.append(kelas.upper())
+    query += " ORDER BY s.kelas, s.nama"
+    cur.execute(query, params)
+    rows = [dict(r) for r in cur.fetchall()]
+    conn.close()
+    total = len(rows)
+    return jsonify({
+        "tanggal":    tanggal,
+        "attendance": rows,
+        "summary": {
+            "total": total,
+            "hadir": sum(1 for r in rows if r["status"] == "hadir"),
+            "sakit": sum(1 for r in rows if r["status"] == "sakit"),
+            "izin":  sum(1 for r in rows if r["status"] == "izin"),
+            "alpha": sum(1 for r in rows if r["status"] == "alpha"),
+            "belum": sum(1 for r in rows if r["status"] == "belum"),
+        }
+    })
+
+
+@app.route("/api/students/<int:student_id>", methods=["DELETE"])
+def delete_student(student_id):
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("DELETE FROM attendance WHERE student_id=?", (student_id,))
+    cur.execute("DELETE FROM students    WHERE id=?",        (student_id,))
+    conn.commit()
+    conn.close()
+    return jsonify({"status": "ok"})
+
+
+@app.route("/api/classes", methods=["GET"])
+def list_classes():
+    conn = get_db()
+    cur  = conn.cursor()
+    cur.execute("SELECT DISTINCT kelas FROM students ORDER BY kelas")
+    classes = [r["kelas"] for r in cur.fetchall()]
+    conn.close()
+    return jsonify({"classes": classes})
 
 if __name__ == "__main__":
     guru_list = list(label_map.values()) or ['Kosong — gunakan self-enroll']

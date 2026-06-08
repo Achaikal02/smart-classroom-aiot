@@ -1,9 +1,13 @@
 import sqlite3
+import os
 
-conn = sqlite3.connect("database.db")
-cur = conn.cursor()
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH  = os.path.join(BASE_DIR, "database.db")
 
-# tabel guru
+conn = sqlite3.connect(DB_PATH)
+cur  = conn.cursor()
+
+# ── tabel guru ──────────────────────────────────────────────
 cur.execute("""
 CREATE TABLE IF NOT EXISTS teachers(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -13,7 +17,7 @@ CREATE TABLE IF NOT EXISTS teachers(
 )
 """)
 
-# tabel sesi monitoring
+# ── tabel sesi monitoring ────────────────────────────────────
 cur.execute("""
 CREATE TABLE IF NOT EXISTS sessions(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +32,7 @@ CREATE TABLE IF NOT EXISTS sessions(
 )
 """)
 
-# tabel log realtime
+# ── tabel log realtime ───────────────────────────────────────
 cur.execute("""
 CREATE TABLE IF NOT EXISTS engagement_logs(
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -43,7 +47,35 @@ CREATE TABLE IF NOT EXISTS engagement_logs(
 )
 """)
 
+# ── tabel siswa ──────────────────────────────────────────────
+cur.execute("""
+CREATE TABLE IF NOT EXISTS students(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    nama TEXT NOT NULL,
+    kelas TEXT NOT NULL,
+    nisn TEXT,
+    foto_path TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+)
+""")
+
+# ── tabel absensi ────────────────────────────────────────────
+cur.execute("""
+CREATE TABLE IF NOT EXISTS attendance(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL,
+    tanggal TEXT NOT NULL,
+    waktu TEXT,
+    status TEXT DEFAULT 'hadir',
+    keterangan TEXT,
+    created_by TEXT,
+    FOREIGN KEY(student_id) REFERENCES students(id)
+)
+""")
+
 conn.commit()
 conn.close()
 
-print("Database berhasil dibuat")
+print("✅ Database berhasil dibuat / diperbarui")
+print(f"   Lokasi: {DB_PATH}")
+print("   Tabel  : teachers, sessions, engagement_logs, students, attendance")

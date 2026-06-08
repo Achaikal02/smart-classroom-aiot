@@ -1,0 +1,934 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Absensi Siswa — Smart Classroom</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #f0f5ff;
+      --sidebar: #0b1f3a;
+      --sidebar2: #112847;
+      --card: #ffffff;
+      --primary: #1a56db;
+      --primary-light: #eff6ff;
+      --border: #e2eaf6;
+      --text: #1e2f4d;
+      --muted: #6b7fa3;
+      --dim: #a0aec0;
+      --green: #10b981;
+      --green-bg: rgba(16,185,129,.1);
+      --yellow: #f59e0b;
+      --yellow-bg: rgba(245,158,11,.1);
+      --red: #ef4444;
+      --red-bg: rgba(239,68,68,.1);
+      --blue: #3b82f6;
+      --blue-bg: rgba(59,130,246,.1);
+      --purple: #8b5cf6;
+      --shadow: 0 4px 24px rgba(15,23,42,.07);
+      --shadow-lg: 0 12px 40px rgba(15,23,42,.12);
+      --radius: 16px;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text); font-family: 'Plus Jakarta Sans', sans-serif; font-size: 14px; }
+    .app { display: flex; height: 100vh; overflow: hidden; }
+
+    /* ═══ SIDEBAR ═══ */
+    .sb { width: 260px; min-width: 260px; background: linear-gradient(180deg, #0b1f3a, #112847); display: flex; flex-direction: column; }
+    .sb-logo { display: flex; align-items: center; gap: 12px; padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .sb-logo-ico { width: 44px; height: 44px; border-radius: 12px; background: linear-gradient(135deg, #60a5fa, #3b82f6); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+    .sb-logo-title { font-size: 13px; font-weight: 700; color: #dbeafe; line-height: 1.2; }
+    .sb-logo-sub { font-size: 10px; color: #64748b; margin-top: 1px; }
+    .sb-nav { flex: 1; padding: 16px 12px; display: flex; flex-direction: column; gap: 4px; }
+    .sb-link { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 12px; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; border: none; background: transparent; width: 100%; text-align: left; text-decoration: none; transition: all .2s; }
+    .sb-link:hover { background: rgba(255,255,255,.05); color: #cbd5e1; }
+    .sb-link.active { background: rgba(59,130,246,.15); color: #60a5fa; }
+    .sb-link span { font-size: 16px; }
+    .sb-sep { font-size: 10px; color: #334155; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; padding: 12px 14px 4px; }
+    .sb-foot { padding: 14px 16px; border-top: 1px solid rgba(255,255,255,.06); }
+    .sb-guru { font-size: 12px; color: #60a5fa; font-weight: 600; margin-bottom: 4px; }
+    .sb-date { font-size: 11px; color: #475569; }
+
+    /* ═══ MAIN ═══ */
+    .main { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+    .topbar { padding: 20px 32px; background: rgba(255,255,255,.8); backdrop-filter: blur(12px); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .tb-title { font-size: 22px; font-weight: 800; color: var(--text); }
+    .tb-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
+    .tb-right { display: flex; align-items: center; gap: 10px; }
+    .content { flex: 1; overflow-y: auto; padding: 24px 32px; display: flex; flex-direction: column; gap: 20px; }
+    .page { display: none; }
+    .page.active { display: contents; }
+
+    /* ═══ BUTTONS ═══ */
+    .btn { display: inline-flex; align-items: center; gap: 7px; padding: 10px 18px; border-radius: 12px; font-size: 13px; font-weight: 700; cursor: pointer; border: none; transition: all .2s; font-family: inherit; }
+    .btn-primary { background: linear-gradient(135deg, #1a56db, #3b82f6); color: white; box-shadow: 0 4px 14px rgba(59,130,246,.3); }
+    .btn-primary:hover { filter: brightness(1.08); transform: translateY(-1px); }
+    .btn-ghost { background: white; color: var(--muted); border: 1px solid var(--border); }
+    .btn-ghost:hover { background: var(--primary-light); color: var(--primary); border-color: var(--primary); }
+    .btn-red { background: linear-gradient(135deg, #ef4444, #f87171); color: white; }
+    .btn-green { background: linear-gradient(135deg, #10b981, #34d399); color: white; }
+    .btn-sm { padding: 6px 12px; font-size: 12px; border-radius: 8px; }
+
+    /* ═══ CARDS ═══ */
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+    .card-head { padding: 18px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+    .card-head-t { font-size: 15px; font-weight: 700; color: var(--text); }
+    .card-head-s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .card-body { padding: 20px; }
+
+    /* ═══ SUMMARY STATS ═══ */
+    .stat-row { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; box-shadow: var(--shadow); }
+    .stat-ico { width: 36px; height: 36px; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 10px; }
+    .stat-n { font-size: 26px; font-weight: 800; line-height: 1; margin-bottom: 3px; }
+    .stat-l { font-size: 11px; color: var(--muted); }
+
+    /* ═══ DATE + FILTER BAR ═══ */
+    .filter-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+    .filter-bar input, .filter-bar select { padding: 9px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; font-family: inherit; color: var(--text); background: white; outline: none; }
+    .filter-bar input:focus, .filter-bar select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+
+    /* ═══ ATTENDANCE TABLE ═══ */
+    .att-table { width: 100%; border-collapse: collapse; }
+    .att-table th { background: #f8faff; border-bottom: 1px solid var(--border); padding: 10px 14px; text-align: left; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .04em; }
+    .att-table td { padding: 10px 14px; border-bottom: 1px solid #f1f5fb; vertical-align: middle; }
+    .att-table tr:last-child td { border-bottom: none; }
+    .att-table tr:hover td { background: #f8faff; }
+    .att-num { font-size: 12px; color: var(--dim); text-align: center; width: 40px; }
+    .att-name { font-weight: 600; font-size: 13px; }
+    .att-class { display: inline-block; padding: 2px 8px; border-radius: 6px; background: var(--blue-bg); color: var(--blue); font-size: 11px; font-weight: 600; }
+
+    /* Status badges */
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 20px; font-size: 11px; font-weight: 700; }
+    .badge-hadir  { background: var(--green-bg);  color: var(--green); }
+    .badge-sakit  { background: var(--yellow-bg); color: var(--yellow); }
+    .badge-izin   { background: var(--blue-bg);   color: var(--blue); }
+    .badge-alpha  { background: var(--red-bg);    color: var(--red); }
+    .badge-belum  { background: #f1f5fb;           color: var(--muted); }
+
+    /* Status select in table */
+    .status-sel { padding: 5px 10px; border-radius: 8px; border: 1px solid var(--border); font-size: 12px; font-family: inherit; font-weight: 600; cursor: pointer; outline: none; background: white; }
+    .status-sel.hadir  { border-color: var(--green);  color: var(--green);  background: var(--green-bg); }
+    .status-sel.sakit  { border-color: var(--yellow); color: var(--yellow); background: var(--yellow-bg); }
+    .status-sel.izin   { border-color: var(--blue);   color: var(--blue);   background: var(--blue-bg); }
+    .status-sel.alpha  { border-color: var(--red);    color: var(--red);    background: var(--red-bg); }
+    .status-sel.belum  { border-color: var(--border); color: var(--muted);  background: #f8faff; }
+
+    /* ═══ FORM REGISTER ═══ */
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-group { display: flex; flex-direction: column; gap: 6px; }
+    .form-group.full { grid-column: 1 / -1; }
+    .form-label { font-size: 12px; font-weight: 700; color: var(--text); }
+    .form-input { padding: 10px 14px; border: 1px solid var(--border); border-radius: 10px; font-size: 13px; font-family: inherit; color: var(--text); background: white; outline: none; transition: all .2s; }
+    .form-input:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+    .form-hint { font-size: 11px; color: var(--muted); }
+    .form-actions { display: flex; gap: 10px; padding-top: 4px; }
+
+    /* ═══ STUDENT LIST (daftar siswa terdaftar) ═══ */
+    .student-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px; }
+    .student-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; box-shadow: var(--shadow); display: flex; align-items: center; gap: 12px; transition: all .2s; }
+    .student-card:hover { transform: translateY(-2px); box-shadow: var(--shadow-lg); }
+    .stu-avatar { width: 42px; height: 42px; border-radius: 12px; background: linear-gradient(135deg, #dbeafe, #93c5fd); display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700; color: var(--primary); flex-shrink: 0; }
+    .stu-name { font-size: 13px; font-weight: 700; color: var(--text); }
+    .stu-class { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .stu-del { margin-left: auto; padding: 4px 8px; border-radius: 7px; font-size: 11px; background: var(--red-bg); color: var(--red); border: none; cursor: pointer; font-family: inherit; font-weight: 600; flex-shrink: 0; }
+    .stu-del:hover { background: var(--red); color: white; }
+
+    /* ═══ EMPTY STATE ═══ */
+    .empty { text-align: center; padding: 48px 20px; }
+    .empty-ico { font-size: 48px; margin-bottom: 12px; }
+    .empty-t { font-size: 15px; font-weight: 700; color: var(--text); margin-bottom: 6px; }
+    .empty-s { font-size: 12px; color: var(--muted); }
+
+    /* ═══ ALERT ═══ */
+    .alert { padding: 10px 14px; border-radius: 10px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .alert-ok  { background: var(--green-bg);  color: var(--green); border: 1px solid rgba(16,185,129,.2); }
+    .alert-err { background: var(--red-bg);    color: var(--red);   border: 1px solid rgba(239,68,68,.2); }
+    .alert-info{ background: var(--blue-bg);   color: var(--blue);  border: 1px solid rgba(59,130,246,.2); }
+
+    /* ═══ MODAL ═══ */
+    .modal-bg { position: fixed; inset: 0; background: rgba(10,20,40,.6); backdrop-filter: blur(6px); z-index: 100; display: none; align-items: center; justify-content: center; padding: 20px; }
+    .modal-bg.show { display: flex; animation: fadeIn .25s ease; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal { background: white; border-radius: 20px; padding: 28px; width: 100%; max-width: 440px; box-shadow: var(--shadow-lg); animation: slideUp .3s ease; }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .modal-title { font-size: 18px; font-weight: 800; color: var(--text); margin-bottom: 4px; }
+    .modal-sub { font-size: 12px; color: var(--muted); margin-bottom: 20px; }
+    .modal-foot { display: flex; gap: 10px; margin-top: 20px; }
+
+    /* ═══ SAVE BAR ═══ */
+    .save-bar { position: sticky; bottom: 0; background: white; border-top: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-radius: 0 0 var(--radius) var(--radius); }
+    .save-info { font-size: 12px; color: var(--muted); }
+    .save-info strong { color: var(--text); }
+
+    /* ═══ TABS (inside page) ═══ */
+    .tabs { display: flex; gap: 4px; padding: 4px; background: #f1f5fb; border-radius: 12px; width: fit-content; }
+    .tab { padding: 8px 18px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--muted); cursor: pointer; border: none; background: transparent; font-family: inherit; transition: all .2s; }
+    .tab.active { background: white; color: var(--text); box-shadow: var(--shadow); }
+
+    /* ═══ TOAST ═══ */
+    .toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+    .toast { padding: 12px 18px; border-radius: 12px; font-size: 13px; font-weight: 600; color: white; box-shadow: var(--shadow-lg); animation: slideLeft .3s ease; display: flex; align-items: center; gap: 8px; }
+    @keyframes slideLeft { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+    .toast.ok    { background: var(--green); }
+    .toast.error { background: var(--red); }
+    .toast.info  { background: var(--primary); }
+
+    @media (max-width: 768px) {
+      .stat-row { grid-template-columns: repeat(3, 1fr); }
+      .form-grid { grid-template-columns: 1fr; }
+      .student-grid { grid-template-columns: 1fr 1fr; }
+      .sb { display: none; }
+    }
+  </style>
+  <style>
+    :root {
+      --bg: #edf4fb;
+      --bg-alt: #dfeef9;
+      --sidebar: #0d2f57;
+      --sidebar2: #123f73;
+      --card: rgba(255,255,255,.72);
+      --primary: #174c84;
+      --primary2: #3f8fb3;
+      --border: #d9e6f2;
+      --text: #123b6b;
+      --muted: #6f89a8;
+      --dim: #94a3b8;
+      --green: #4ade80;
+      --blue: #3b82f6;
+      --yellow: #fbbf24;
+      --red: #ef4444;
+      --shadow: 0 10px 30px rgba(15,23,42,.08);
+    }
+    html, body { min-height: 100%; background: linear-gradient(135deg, var(--bg), var(--bg-alt)); color: var(--text); font-family: 'Segoe UI', system-ui, sans-serif; font-size: 14px; }
+    .sb { width: 260px; min-width: 260px; background: linear-gradient(180deg, var(--sidebar), var(--sidebar2)); }
+    .sb-logo { padding: 26px 22px; }
+    .sb-logo-ico { width: 48px; height: 48px; border-radius: 16px; background: linear-gradient(135deg, #7dd3fc, #60a5fa); font-size: 22px; box-shadow: 0 10px 25px rgba(96,165,250,.4); }
+    .sb-logo-title { color: #dbeafe; font-size: 13px; font-weight: 600; }
+    .sb-logo-sub { color: #93c5fd; font-size: 10px; }
+    .sb-nav { padding: 16px 12px; gap: 6px; }
+    .sb-link { display: flex; align-items: center; gap: 10px; padding: 14px 16px; border-radius: 18px; color: #dbeafe; font-size: 14px; font-weight: 600; transition: all .25s; }
+    .sb-link:hover { background: rgba(255,255,255,.08); transform: translateX(4px); }
+    .sb-link.active { background: linear-gradient(90deg, #7dd3fc, #93c5fd); color: var(--sidebar); box-shadow: 0 12px 30px rgba(125,211,252,.35); }
+    .sb-sep { color: #94a3b8; padding: 12px 16px 4px; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+    .sb-foot { padding: 16px 18px; }
+    .sb-guru { color: #93c5fd; font-size: 12px; font-weight: 500; }
+    .sb-date { color: #94a3b8; font-size: 11px; }
+
+    .main { background: transparent; }
+    .topbar { display: flex; align-items: center; justify-content: space-between; padding: 28px 36px; background: rgba(255,255,255,.55); backdrop-filter: blur(12px); border-bottom: 1px solid rgba(255,255,255,.4); }
+    .tb-title { font-size: 36px; font-weight: 800; color: var(--primary); letter-spacing: -0.5px; }
+    .tb-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+    .content { flex: 1; overflow-y: auto; padding: 22px 28px; gap: 20px; }
+
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 14px 24px; border-radius: 18px; font-size: 14px; font-weight: 700; cursor: pointer; border: none; transition: all .25s; white-space: nowrap; box-shadow: var(--shadow); }
+    .btn-primary { background: linear-gradient(135deg, var(--primary), var(--primary2)); color: white; }
+    .btn-ghost { background: transparent; color: var(--muted); border: 1px solid rgba(74,222,128,.2); }
+    .btn-ghost:hover { background: rgba(74,222,128,.06); color: var(--primary); }
+    .btn-green { background: linear-gradient(135deg, #4ade80, #22c55e); color: white; }
+    .btn-red { background: linear-gradient(135deg, #ef4444, #fb7185); color: white; }
+    .btn-sm { padding: 10px 16px; border-radius: 14px; font-size: 13px; }
+
+    .card { background: var(--card); backdrop-filter: blur(10px); border: 1px solid rgba(255,255,255,.6); border-radius: 30px; padding: 24px; box-shadow: var(--shadow); }
+    .card-head { padding: 20px 22px; display: flex; align-items: center; justify-content: space-between; }
+    .card-head-t { font-size: 14px; font-weight: 600; color: var(--text); }
+    .card-head-s { font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .card-body { padding: 22px; }
+
+    .stat-row { display: grid; grid-template-columns: repeat(5, minmax(120px, 1fr)); gap: 12px; }
+    .stat { background: var(--card); border: 1px solid var(--border); border-radius: 30px; padding: 18px 20px; box-shadow: var(--shadow); }
+    .stat-ico { width: 34px; height: 34px; border-radius: 9px; display: flex; align-items: center; justify-content: center; font-size: 17px; margin-bottom: 10px; }
+    .stat-n { font-size: 28px; font-weight: 700; color: var(--text); line-height: 1; margin-bottom: 3px; }
+    .stat-l { font-size: 11px; color: var(--muted); }
+
+    .filter-bar input, .filter-bar select { padding: 9px 14px; border: 1px solid var(--border); border-radius: 14px; font-size: 13px; font-family: inherit; color: var(--text); background: white; outline: none; }
+    .filter-bar input:focus, .filter-bar select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(59,130,246,.1); }
+
+    .att-table th { padding: 14px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: .04em; }
+    .att-table td { padding: 14px 16px; font-size: 13px; }
+    .att-class { padding: 4px 10px; border-radius: 999px; background: rgba(59,130,246,.12); color: var(--blue); font-size: 11px; }
+    .status-sel { padding: 9px 12px; border-radius: 14px; font-size: 12px; }
+
+    .student-card { border-radius: 24px; padding: 18px; }
+    .stu-avatar { width: 44px; height: 44px; border-radius: 16px; font-size: 18px; }
+    .stu-del { padding: 7px 12px; border-radius: 12px; font-size: 11px; }
+
+    .empty { padding: 42px 20px; }
+    .empty-ico { font-size: 44px; }
+
+    .save-bar { position: sticky; bottom: 0; background: white; border-top: 1px solid var(--border); padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; border-radius: 0 0 24px 24px; }
+
+    .toast-wrap { position: fixed; top: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }
+
+    @media (max-width: 900px) {
+      .topbar { flex-direction: column; align-items: flex-start; gap: 16px; }
+      .save-bar { flex-direction: column; gap: 12px; }
+    }
+
+    @media (max-width: 768px) {
+      .sb { display: none; }
+      .topbar { padding: 16px 20px; }
+      .content { padding: 18px 20px; }
+      .stat-row { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+<div class="app">
+
+  <!-- SIDEBAR -->
+  <aside class="sb">
+    <div class="sb-logo">
+      <div class="sb-logo-ico">🏫</div>
+      <div>
+        <div class="sb-logo-title">Smart Classroom</div>
+        <div class="sb-logo-sub">Absensi Siswa</div>
+      </div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-sep">Menu</div>
+      <a href="index.html" class="sb-link"><span>📊</span> Dashboard Real-time</a>
+      <a href="#" class="sb-link active" onclick="showTab('absensi');return false"><span>✅</span> Absensi Hari Ini</a>
+      <a href="#" class="sb-link" onclick="showTab('siswa');return false"><span>👥</span> Data Siswa</a>
+      <a href="#" class="sb-link" onclick="showTab('register');return false"><span>➕</span> Daftarkan Siswa</a>
+    </nav>
+    <div class="sb-foot">
+      <div class="sb-guru" id="sb-guru">👤 —</div>
+      <div class="sb-date" id="sb-date">—</div>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <div class="main">
+    <header class="topbar">
+      <div>
+        <div class="tb-title" id="tb-title">Absensi Hari Ini</div>
+        <div class="tb-sub" id="tb-sub">Catat kehadiran siswa untuk hari ini</div>
+      </div>
+      <div class="tb-right">
+        <div class="filter-bar">
+          <input type="date" id="date-filter" onchange="loadAttendance()"/>
+          <select id="class-filter" onchange="loadAttendance()">
+            <option value="">Semua Kelas</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost" onclick="loadAttendance()">🔄 Refresh</button>
+      </div>
+    </header>
+
+    <div class="content">
+
+      <!-- ══ TAB: ABSENSI ══ -->
+      <div class="page active" id="tab-absensi">
+
+        <!-- Summary stats -->
+        <div class="stat-row">
+          <div class="stat">
+            <div class="stat-ico" style="background:#f1f5fb">👥</div>
+            <div class="stat-n" id="s-total">—</div>
+            <div class="stat-l">Total Siswa</div>
+          </div>
+          <div class="stat">
+            <div class="stat-ico" style="background:var(--green-bg)">✅</div>
+            <div class="stat-n" style="color:var(--green)" id="s-hadir">—</div>
+            <div class="stat-l">Hadir</div>
+          </div>
+          <div class="stat">
+            <div class="stat-ico" style="background:var(--yellow-bg)">🤒</div>
+            <div class="stat-n" style="color:var(--yellow)" id="s-sakit">—</div>
+            <div class="stat-l">Sakit</div>
+          </div>
+          <div class="stat">
+            <div class="stat-ico" style="background:var(--blue-bg)">📝</div>
+            <div class="stat-n" style="color:var(--blue)" id="s-izin">—</div>
+            <div class="stat-l">Izin</div>
+          </div>
+          <div class="stat">
+            <div class="stat-ico" style="background:var(--red-bg)">❌</div>
+            <div class="stat-n" style="color:var(--red)" id="s-alpha">—</div>
+            <div class="stat-l">Alpha</div>
+          </div>
+        </div>
+
+        <!-- Attendance camera scanner -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-head-t">📷 Scan Absensi</div>
+              <div class="card-head-s">Gunakan kamera untuk mengenali siswa dan tandai hadir</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-primary btn-sm" id="camera-toggle" onclick="toggleCamera()">▶️ Mulai Kamera</button>
+              <button class="btn btn-ghost btn-sm" id="scan-button" onclick="scanAttendance()">📸 Scan</button>
+            </div>
+          </div>
+          <div class="card-body" style="display:grid;grid-template-columns:1.3fr 1fr;gap:16px;align-items:start">
+            <div>
+              <video id="attendance-video" autoplay muted playsinline style="width:100%;border-radius:18px;background:#000;min-height:240px"></video>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div class="alert alert-info" id="scan-status">Kamera belum aktif.</div>
+              <div style="font-size:14px;font-weight:700;color:var(--text)">Hasil Scan</div>
+              <div id="scan-result" style="min-height:56px;padding:12px;border:1px solid var(--border);border-radius:14px;background:#f8fafc;color:var(--muted)">Belum memindai.</div>
+              <button class="btn btn-green" onclick="markScannedAttendance()" id="mark-scan-btn" disabled>✅ Tandai Hadir</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Attendance table card -->
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-head-t">📋 Daftar Hadir</div>
+              <div class="card-head-s" id="att-date-label">—</div>
+            </div>
+            <div style="display:flex;gap:8px">
+              <button class="btn btn-ghost btn-sm" onclick="setAllStatus('hadir')">✅ Semua Hadir</button>
+              <button class="btn btn-primary btn-sm" onclick="saveAllAttendance()">💾 Simpan Semua</button>
+            </div>
+          </div>
+          <div style="overflow-x:auto">
+            <table class="att-table">
+              <thead>
+                <tr>
+                  <th class="att-num">#</th>
+                  <th>Nama Siswa</th>
+                  <th>Kelas</th>
+                  <th>Status</th>
+                  <th>Waktu</th>
+                  <th>Keterangan</th>
+                  <th>Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="att-tbody">
+                <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">Memuat data...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="save-bar">
+            <div class="save-info">Klik status tiap siswa, lalu tekan <strong>Simpan Semua</strong></div>
+            <button class="btn btn-primary" onclick="saveAllAttendance()">💾 Simpan Absensi</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TAB: DATA SISWA ══ -->
+      <div class="page" id="tab-siswa">
+        <div class="card">
+          <div class="card-head">
+            <div>
+              <div class="card-head-t">👥 Data Siswa Terdaftar</div>
+              <div class="card-head-s" id="stu-count-label">Memuat...</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="stu-class-filter" onchange="loadStudents()" style="padding:7px 12px;border:1px solid var(--border);border-radius:9px;font-size:12px;font-family:inherit">
+                <option value="">Semua Kelas</option>
+              </select>
+              <button class="btn btn-primary btn-sm" onclick="showTab('register')">➕ Tambah Siswa</button>
+            </div>
+          </div>
+          <div class="card-body">
+            <div class="student-grid" id="student-grid">
+              <div class="empty">
+                <div class="empty-ico">⏳</div>
+                <div class="empty-t">Memuat data siswa...</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ══ TAB: REGISTER ══ -->
+      <div class="page" id="tab-register">
+        <div class="card" style="max-width:560px">
+          <div class="card-head">
+            <div>
+              <div class="card-head-t">➕ Daftarkan Siswa Baru</div>
+              <div class="card-head-s">Isi data siswa, foto opsional</div>
+            </div>
+          </div>
+          <div class="card-body">
+            <div id="reg-alert" style="display:none"></div>
+            <div class="form-grid">
+              <div class="form-group full">
+                <label class="form-label">Nama Lengkap *</label>
+                <input type="text" class="form-input" id="reg-nama" placeholder="Contoh: Budi Santoso"/>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Kelas *</label>
+                <input type="text" class="form-input" id="reg-kelas" placeholder="Contoh: X-IPA-1"/>
+                <span class="form-hint">Ketik nama kelas (misal: X-IPA-1, XI-B)</span>
+              </div>
+              <div class="form-group">
+                <label class="form-label">NISN</label>
+                <input type="text" class="form-input" id="reg-nisn" placeholder="Opsional"/>
+              </div>
+              <div class="form-group full">
+                <label class="form-label">Foto (Opsional)</label>
+                <input type="file" class="form-input" id="reg-foto" accept="image/*" onchange="previewFoto(event)"/>
+                <span class="form-hint">Format JPG/PNG. Akan disimpan ke dataset/siswa/</span>
+                <img id="foto-preview" style="width:80px;height:80px;object-fit:cover;border-radius:12px;margin-top:8px;display:none;border:2px solid var(--border)"/>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button class="btn btn-primary" onclick="registerStudent()">✅ Daftarkan Siswa</button>
+              <button class="btn btn-ghost" onclick="clearRegForm()">🗑 Bersihkan</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bulk register hint -->
+        <div class="card" style="max-width:560px">
+          <div class="card-head">
+            <div class="card-head-t">💡 Tips Pendaftaran</div>
+          </div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:10px">
+            <div style="font-size:13px;color:var(--muted);line-height:1.7">
+              • Nama kelas harus konsisten (huruf besar, misal: <strong>X-IPA-1</strong>)<br/>
+              • Setelah mendaftar, siswa langsung muncul di halaman Absensi<br/>
+              • Foto siswa opsional — tidak mempengaruhi fungsi absensi<br/>
+              • Untuk hapus siswa, buka tab <strong>Data Siswa</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /content -->
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- Toast container -->
+<div class="toast-wrap" id="toast-wrap"></div>
+
+<script>
+const API = "http://127.0.0.1:5000/api";
+
+// State
+let attendanceState = {};  // { student_id: { status, keterangan } }
+let allStudents     = [];
+
+// ─── INIT ───────────────────────────────────────────────────────
+window.addEventListener("DOMContentLoaded", () => {
+  const urlParams = new URLSearchParams(window.location.search);
+  const guru = urlParams.get("user") || "Guru";
+  document.getElementById("sb-guru").textContent = "👤 " + guru;
+
+  const today = new Date();
+  document.getElementById("sb-date").textContent = today.toLocaleDateString("id-ID", {
+    weekday: "long", day: "numeric", month: "long", year: "numeric"
+  });
+  document.getElementById("date-filter").value = today.toISOString().split("T")[0];
+
+  loadClasses();
+  loadAttendance();
+});
+
+// ─── TAB NAV ────────────────────────────────────────────────────
+const tabTitles = {
+  absensi:  ["Absensi Hari Ini",         "Catat kehadiran siswa untuk hari ini"],
+  siswa:    ["Data Siswa Terdaftar",      "Kelola daftar siswa yang sudah terdaftar"],
+  register: ["Daftarkan Siswa Baru",     "Tambahkan siswa ke sistem absensi"]
+};
+
+function showTab(id) {
+  document.querySelectorAll(".page").forEach(p => p.classList.remove("active"));
+  document.querySelectorAll(".sb-link").forEach(l => l.classList.remove("active"));
+  document.getElementById("tab-" + id).classList.add("active");
+
+  // Highlight sidebar
+  document.querySelectorAll(".sb-link").forEach(l => {
+    if (l.textContent.trim().toLowerCase().includes(
+      id === "absensi" ? "absensi" : id === "siswa" ? "data" : "daftar"
+    )) l.classList.add("active");
+  });
+
+  const [title, sub] = tabTitles[id] || ["", ""];
+  document.getElementById("tb-title").textContent = title;
+  document.getElementById("tb-sub").textContent   = sub;
+
+  if (id === "siswa") loadStudents();
+}
+
+// ─── LOAD CLASSES (dropdown) ─────────────────────────────────────
+async function loadClasses() {
+  try {
+    const res  = await fetch(`${API}/classes`);
+    const data = await res.json();
+    ["class-filter", "stu-class-filter"].forEach(selId => {
+      const sel = document.getElementById(selId);
+      // Keep first option, clear rest
+      while (sel.options.length > 1) sel.remove(1);
+      data.classes.forEach(k => {
+        const opt = document.createElement("option");
+        opt.value = k; opt.textContent = k;
+        sel.appendChild(opt);
+      });
+    });
+  } catch(e) {}
+}
+
+// ─── LOAD ATTENDANCE ─────────────────────────────────────────────
+let attendanceStream = null;
+let recognizedStudent = null;
+
+async function toggleCamera() {
+  const video = document.getElementById("attendance-video");
+  const button = document.getElementById("camera-toggle");
+  if (attendanceStream) {
+    stopCamera();
+    button.textContent = "▶️ Mulai Kamera";
+    return;
+  }
+  try {
+    attendanceStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    video.srcObject = attendanceStream;
+    document.getElementById("scan-status").textContent = "Kamera aktif. Tekan Scan untuk mendeteksi siswa.";
+    button.textContent = "⏸️ Hentikan Kamera";
+    video.onloadedmetadata = () => {
+      video.play();
+    };
+  } catch (e) {
+    document.getElementById("scan-status").textContent = "Tidak dapat mengakses kamera.";
+    toast("Gagal mengaktifkan kamera", "error");
+  }
+}
+
+function stopCamera() {
+  if (!attendanceStream) return;
+  attendanceStream.getTracks().forEach(track => track.stop());
+  attendanceStream = null;
+  document.getElementById("attendance-video").srcObject = null;
+  document.getElementById("scan-status").textContent = "Kamera belum aktif.";
+  document.getElementById("mark-scan-btn").disabled = true;
+  recognizedStudent = null;
+  document.getElementById("scan-result").textContent = "Belum memindai.";
+}
+
+async function scanAttendance() {
+  if (!attendanceStream) {
+    toast("Aktifkan kamera terlebih dahulu", "error");
+    return;
+  }
+  const video = document.getElementById("attendance-video");
+  const canvas = document.createElement("canvas");
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
+  const imageBase64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
+  document.getElementById("scan-status").textContent = "Memindai...";
+
+  try {
+    const res  = await fetch(`${API}/students/recognize`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ image: imageBase64 })
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const msg = data?.message || `Backend error ${res.status}`;
+      recognizedStudent = null;
+      document.getElementById("scan-result").textContent = `Gagal memindai: ${msg}`;
+      document.getElementById("scan-status").textContent = "Kesalahan backend saat memindai.";
+      document.getElementById("mark-scan-btn").disabled = true;
+      toast(msg, "error");
+      return;
+    }
+    if (data?.status === "ok") {
+      recognizedStudent = { id: data.student_id, nama: data.nama };
+      document.getElementById("scan-result").textContent = `Dikenali: ${data.nama} (${data.confidence}% match)`;
+      document.getElementById("scan-status").textContent = "Siswa terdeteksi. Tekan Tandai Hadir untuk mencatat.";
+      document.getElementById("mark-scan-btn").disabled = false;
+    } else {
+      recognizedStudent = null;
+      document.getElementById("scan-result").textContent = data?.message || "Siswa tidak dikenali.";
+      document.getElementById("scan-status").textContent = "Scan selesai. Tidak ada siswa terdaftar yang cocok.";
+      document.getElementById("mark-scan-btn").disabled = true;
+    }
+  } catch (e) {
+    recognizedStudent = null;
+    document.getElementById("scan-result").textContent = "Gagal memindai. Coba lagi.";
+    document.getElementById("scan-status").textContent = "Kesalahan jaringan atau backend.";
+    document.getElementById("mark-scan-btn").disabled = true;
+    toast("Gagal memindai siswa", "error");
+  }
+}
+
+async function markScannedAttendance() {
+  if (!recognizedStudent) return;
+  try {
+    const res = await fetch(`${API}/attendance/mark`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ student_id: recognizedStudent.id, status: "hadir", keterangan: "Scan kamera absensi" })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      toast(`✅ Absensi ${recognizedStudent.nama} dicatat`, "ok");
+      loadAttendance();
+      document.getElementById("mark-scan-btn").disabled = true;
+    } else {
+      toast("Gagal mencatat absensi", "error");
+    }
+  } catch (e) {
+    toast("Tidak bisa terhubung ke backend", "error");
+  }
+}
+
+async function loadAttendance() {
+  const date  = document.getElementById("date-filter").value;
+  const kelas = document.getElementById("class-filter").value;
+
+  document.getElementById("att-date-label").textContent =
+    new Date(date + "T00:00:00").toLocaleDateString("id-ID", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+
+  const tbody = document.getElementById("att-tbody");
+  tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--muted)">⏳ Memuat...</td></tr>`;
+
+  try {
+    let url = `${API}/attendance?tanggal=${date}`;
+    if (kelas) url += `&kelas=${encodeURIComponent(kelas)}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+
+    // Update summary
+    const s = data.summary;
+    document.getElementById("s-total").textContent = s.total;
+    document.getElementById("s-hadir").textContent = s.hadir;
+    document.getElementById("s-sakit").textContent = s.sakit;
+    document.getElementById("s-izin").textContent  = s.izin;
+    document.getElementById("s-alpha").textContent = s.alpha;
+
+    if (!data.attendance.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty"><div class="empty-ico">📭</div><div class="empty-t">Belum ada siswa terdaftar</div><div class="empty-s">Daftarkan siswa di menu <strong>Daftarkan Siswa</strong></div></div></td></tr>`;
+      return;
+    }
+
+    // Build state
+    attendanceState = {};
+    data.attendance.forEach(r => {
+      attendanceState[r.id] = { status: r.status || "belum", keterangan: r.keterangan || "" };
+    });
+
+    tbody.innerHTML = data.attendance.map((r, i) => `
+      <tr id="row-${r.id}">
+        <td class="att-num">${i + 1}</td>
+        <td><span class="att-name">${r.nama}</span></td>
+        <td><span class="att-class">${r.kelas}</span></td>
+        <td>
+          <select class="status-sel ${attendanceState[r.id].status}"
+                  onchange="updateStatus(${r.id}, this)"
+                  id="sel-${r.id}">
+            <option value="belum"  ${attendanceState[r.id].status==='belum' ?'selected':''}>⏳ Belum</option>
+            <option value="hadir"  ${attendanceState[r.id].status==='hadir' ?'selected':''}>✅ Hadir</option>
+            <option value="sakit"  ${attendanceState[r.id].status==='sakit' ?'selected':''}>🤒 Sakit</option>
+            <option value="izin"   ${attendanceState[r.id].status==='izin'  ?'selected':''}>📝 Izin</option>
+            <option value="alpha"  ${attendanceState[r.id].status==='alpha' ?'selected':''}>❌ Alpha</option>
+          </select>
+        </td>
+        <td style="font-size:12px;color:var(--muted)">${r.waktu || '—'}</td>
+        <td>
+          <input type="text" placeholder="Keterangan..." value="${r.keterangan || ''}"
+                 style="padding:5px 9px;border:1px solid var(--border);border-radius:8px;font-size:12px;font-family:inherit;width:130px;outline:none"
+                 oninput="attendanceState[${r.id}].keterangan=this.value"/>
+        </td>
+        <td>
+          <button class="btn btn-green btn-sm" onclick="saveSingle(${r.id})">Simpan</button>
+        </td>
+      </tr>
+    `).join("");
+
+  } catch(e) {
+    tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;padding:40px;color:var(--red)">❌ Tidak bisa terhubung ke backend</td></tr>`;
+    updateSummary(null);
+  }
+}
+
+function updateStatus(id, sel) {
+  attendanceState[id].status = sel.value;
+  sel.className = `status-sel ${sel.value}`;
+}
+
+function setAllStatus(status) {
+  Object.keys(attendanceState).forEach(id => {
+    attendanceState[id].status = status;
+    const sel = document.getElementById(`sel-${id}`);
+    if (sel) { sel.value = status; sel.className = `status-sel ${status}`; }
+  });
+  toast("Semua siswa di-set: " + status, "info");
+}
+
+// Save single siswa
+async function saveSingle(id) {
+  const s = attendanceState[id];
+  if (!s) return;
+  try {
+    const res  = await fetch(`${API}/attendance/mark`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ student_id: id, status: s.status, keterangan: s.keterangan })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      toast(`✅ Disimpan (${s.status})`, "ok");
+      loadAttendance();
+    }
+  } catch(e) { toast("Gagal menyimpan", "error"); }
+}
+
+// Save all
+async function saveAllAttendance() {
+  const records = Object.entries(attendanceState).map(([id, s]) => ({
+    student_id: parseInt(id), status: s.status, keterangan: s.keterangan
+  }));
+  if (!records.length) { toast("Tidak ada data untuk disimpan", "error"); return; }
+  try {
+    const res  = await fetch(`${API}/attendance/bulk`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ records })
+    });
+    const data = await res.json();
+    if (data.status === "ok") {
+      toast(`✅ ${data.saved} absensi tersimpan`, "ok");
+      loadAttendance();
+    }
+  } catch(e) { toast("Gagal menyimpan ke backend", "error"); }
+}
+
+// ─── LOAD STUDENTS ────────────────────────────────────────────────
+async function loadStudents() {
+  const kelas  = document.getElementById("stu-class-filter").value;
+  const grid   = document.getElementById("student-grid");
+  const label  = document.getElementById("stu-count-label");
+  grid.innerHTML = `<div class="empty"><div class="empty-ico">⏳</div><div class="empty-t">Memuat...</div></div>`;
+
+  try {
+    let url = `${API}/students`;
+    if (kelas) url += `?kelas=${encodeURIComponent(kelas)}`;
+    const res  = await fetch(url);
+    const data = await res.json();
+    allStudents = data.students;
+    label.textContent = `${allStudents.length} siswa terdaftar`;
+
+    if (!allStudents.length) {
+      grid.innerHTML = `<div class="empty"><div class="empty-ico">👤</div><div class="empty-t">Belum ada siswa</div><div class="empty-s">Tambahkan lewat menu Daftarkan Siswa</div></div>`;
+      return;
+    }
+
+    grid.innerHTML = allStudents.map(s => `
+      <div class="student-card">
+        <div class="stu-avatar">${s.nama.charAt(0)}</div>
+        <div>
+          <div class="stu-name">${s.nama}</div>
+          <div class="stu-class">${s.kelas} ${s.nisn ? '· ' + s.nisn : ''}</div>
+        </div>
+        <button class="stu-del" onclick="deleteStudent(${s.id},'${s.nama}')">🗑</button>
+      </div>
+    `).join("");
+  } catch(e) {
+    grid.innerHTML = `<div class="empty"><div class="empty-ico">❌</div><div class="empty-t">Tidak bisa terhubung</div></div>`;
+  }
+}
+
+async function deleteStudent(id, nama) {
+  if (!confirm(`Hapus siswa "${nama}"?\nSemua data absensinya juga akan dihapus.`)) return;
+  try {
+    const res = await fetch(`${API}/students/${id}`, { method: "DELETE" });
+    const d   = await res.json();
+    if (d.status === "ok") { toast(`🗑 ${nama} dihapus`, "ok"); loadStudents(); loadClasses(); }
+  } catch(e) { toast("Gagal menghapus", "error"); }
+}
+
+// ─── REGISTER STUDENT ────────────────────────────────────────────
+function previewFoto(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const preview = document.getElementById("foto-preview");
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = "block";
+}
+
+async function registerStudent() {
+  const nama  = document.getElementById("reg-nama").value.trim();
+  const kelas = document.getElementById("reg-kelas").value.trim();
+  const nisn  = document.getElementById("reg-nisn").value.trim();
+  const file  = document.getElementById("reg-foto").files[0];
+  const alrt  = document.getElementById("reg-alert");
+
+  if (!nama || !kelas) {
+    showRegAlert("❌ Nama dan kelas wajib diisi", "err");
+    return;
+  }
+
+  // Convert foto ke base64 jika ada
+  let fotoB64 = "";
+  if (file) {
+    fotoB64 = await new Promise(res => {
+      const r = new FileReader();
+      r.onload = () => res(r.result.split(",")[1]);
+      r.readAsDataURL(file);
+    });
+  }
+
+  try {
+    const resp = await fetch(`${API}/students/register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nama, kelas, nisn, foto: fotoB64 })
+    });
+    const data = await resp.json();
+    if (data.status === "ok") {
+      showRegAlert(`✅ ${data.nama} berhasil didaftarkan (ID: ${data.id})`, "ok");
+      clearRegForm();
+      loadClasses();
+      toast(`✅ ${data.nama} terdaftar!`, "ok");
+    } else {
+      showRegAlert("❌ " + (data.message || "Gagal mendaftar"), "err");
+    }
+  } catch(e) {
+    showRegAlert("❌ Tidak bisa terhubung ke backend", "err");
+  }
+}
+
+function showRegAlert(msg, type) {
+  const el = document.getElementById("reg-alert");
+  el.className = `alert alert-${type}`;
+  el.textContent = msg;
+  el.style.display = "flex";
+  setTimeout(() => { el.style.display = "none"; }, 4000);
+}
+
+function clearRegForm() {
+  ["reg-nama","reg-kelas","reg-nisn"].forEach(id => document.getElementById(id).value = "");
+  document.getElementById("reg-foto").value = "";
+  document.getElementById("foto-preview").style.display = "none";
+}
+
+// ─── TOAST ───────────────────────────────────────────────────────
+function toast(msg, type = "ok") {
+  const wrap = document.getElementById("toast-wrap");
+  const el   = document.createElement("div");
+  el.className = `toast ${type}`;
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(() => el.remove(), 3000);
+}
+
+function updateSummary(s) {
+  if (!s) {
+    ["s-total","s-hadir","s-sakit","s-izin","s-alpha"].forEach(id => {
+      document.getElementById(id).textContent = "—";
+    });
+    return;
+  }
+  document.getElementById("s-total").textContent = s.total;
+  document.getElementById("s-hadir").textContent = s.hadir;
+  document.getElementById("s-sakit").textContent = s.sakit;
+  document.getElementById("s-izin").textContent  = s.izin;
+  document.getElementById("s-alpha").textContent = s.alpha;
+}
+</script>
+</body>
+</html>
